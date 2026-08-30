@@ -28,6 +28,11 @@ export function init(a) {
   buttons.hideAll = add(bar, { label: '전체 가리기', onClick: () => actions.hideAll() });
   buttons.showAll = add(bar, { label: '전체 보기', onClick: () => actions.revealAll() });
   buttons.random = add(bar, { label: '랜덤', title: '표시 순서만 섞기', onClick: () => actions.toggleRandom() });
+  buttons.clearWritten = add(bar, {
+    label: '작성 비우기',
+    title: "이 챕터의 '정답 작성하기' 칸 비우기",
+    onClick: () => sheet.clearExplanations('view'),
+  });
   group(bar);
 
   buttons.rowHeight = add(bar, { label: '↕', title: '행 높이', onClick: (e) => rowHeightMenu(e.currentTarget) });
@@ -105,13 +110,9 @@ function rowHeightMenu(anchor) {
 
 function moreMenu(anchor) {
   const deep = store.getSetting('folderCountMode') !== 'direct';
-  const inReview = sheet.getView().kind === 'review';
   ui.popupMenu(anchor, [
-    {
-      label: inReview ? "'정답 작성하기' 비우기 (이 목록)" : "'정답 작성하기' 비우기 (이 챕터)",
-      onClick: () => sheet.clearExplanations('view'),
-    },
-    { label: "'정답 작성하기' 비우기 (전체)", danger: true, onClick: () => sheet.clearExplanations('all') },
+    // 챕터 단위 비우기는 툴바의 '작성 비우기' 버튼에 있다. 여기는 전체 범위만.
+    { label: "'정답 작성하기' 전체 비우기 (모든 챕터)", danger: true, onClick: () => sheet.clearExplanations('all') },
     '-',
     { label: '데이터 백업 (JSON 내보내기)', onClick: () => backup.exportBackup().then(refresh) },
     { label: '백업 파일에서 복원', onClick: () => backup.pickAndImport() },

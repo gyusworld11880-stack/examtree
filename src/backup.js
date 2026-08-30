@@ -7,10 +7,16 @@ import * as undo from './undo.js';
 
 const BACKUP_REMINDER_DAYS = 14;
 
+/**
+ * 백업 파일 이름. 누를 때마다 새 파일이 생기므로 시각까지 넣는다.
+ * 날짜만 쓰면 같은 날 두 번째 백업이 'xxx 2.json' 이 되어 어느 게 최신인지 알 수 없다.
+ */
 function fileName() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
-  return `ExamTree_Backup_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.json`;
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  const time = `${p(d.getHours())}${p(d.getMinutes())}`;
+  return `ExamTree_Backup_${date}_${time}.json`;
 }
 
 export async function exportBackup() {

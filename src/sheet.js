@@ -715,6 +715,49 @@ function applyMove(ids, target) {
   });
 }
 
+/**
+ * '정답 작성하기' 칸을 한꺼번에 비운다. 직접 써 본 답만 지우고 문제·정답은 건드리지 않는다.
+ * @param scope 'view' = 지금 보고 있는 목록, 'all' = 모든 챕터
+ */
+export async function clearExplanations(scope = 'view') {
+  flushPendingEdit();
+  const pool = scope === 'all' ? [...store.questions.values()] : currentList();
+  const targets = pool.filter((q) => !rt.isEmptyHtml(q.explanation));
+
+  if (!targets.length) {
+    ui.toast('지울 작성 내용이 없습니다.');
+    return;
+  }
+
+  const where = scope === 'all'
+    ? '모든 챕터'
+    : (view.kind === 'review' ? '★ 복습 문제 목록' : store.folderPathText(view.folderID) || '현재 목록');
+
+  const ok = await ui.confirmDialog({
+    title: "'정답 작성하기' 칸을 비울까요?",
+    message: `${where}\n작성 내용이 있는 문제 ${targets.length}개가 비워집니다.\n`
+      + '문제·답 개수·정답·★ 표시는 그대로 남습니다. 실행취소로 되돌릴 수 있습니다.',
+    okLabel: '비우기', danger: true,
+  });
+  if (!ok) return;
+
+  const before = targets.map((q) => ({ id: q.id, explanation: q.explanation }));
+  undo.run({
+    label: '정답 작성하기 비우기',
+    redo() {
+      store.batch(() => { for (const b of before) store.updateQuestion(b.id, { explanation: '' }); });
+      render();
+    },
+    undo() {
+      store.batch(() => { for (const b of before) store.updateQuestion(b.id, { explanation: b.explanation }); });
+      render();
+    },
+  });
+  ui.toast(`문제 ${before.length}개의 작성 내용을 비웠습니다.`, {
+    action: () => { undo.undo(); render(); },
+  });
+}
+
 function toggleStar(id) {
   const q = store.questions.get(id);
   if (!q) return;

@@ -105,7 +105,14 @@ function rowHeightMenu(anchor) {
 
 function moreMenu(anchor) {
   const deep = store.getSetting('folderCountMode') !== 'direct';
+  const inReview = sheet.getView().kind === 'review';
   ui.popupMenu(anchor, [
+    {
+      label: inReview ? "'정답 작성하기' 비우기 (이 목록)" : "'정답 작성하기' 비우기 (이 챕터)",
+      onClick: () => sheet.clearExplanations('view'),
+    },
+    { label: "'정답 작성하기' 비우기 (전체)", danger: true, onClick: () => sheet.clearExplanations('all') },
+    '-',
     { label: '데이터 백업 (JSON 내보내기)', onClick: () => backup.exportBackup().then(refresh) },
     { label: '백업 파일에서 복원', onClick: () => backup.pickAndImport() },
     '-',

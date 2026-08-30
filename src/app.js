@@ -14,7 +14,7 @@ import * as rt from './richtext.js';
 const NARROW = 900; // 이 폭 미만이면 사이드바를 서랍(Drawer)으로 쓴다
 
 // 화면에 보여 줄 버전. sw.js 의 VERSION 과 항상 같이 올린다.
-export const APP_VERSION = '1.2.1';
+export const APP_VERSION = '1.3.0';
 
 // ── 화면 전환 ───────────────────────────────────────────────
 function openFolder(folderID, questionID) {
@@ -93,6 +93,12 @@ const actions = {
   bold: () => withActiveCell(() => rt.toggleBold()),
   fontSize: (px) => withActiveCell((cell) => rt.applyFontSize(cell, px)),
   color: (c) => withActiveCell(() => rt.applyColor(c)),
+
+  setRowHeightMode(mode) {
+    sheet.flushPendingEdit();
+    store.setSetting('rowHeightMode', mode);
+    sheet.render();
+  },
 
   search: () => search.open(),
   checkUpdate: () => checkForUpdate(),

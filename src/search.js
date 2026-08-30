@@ -32,7 +32,7 @@ export function init(cbs) {
 export function open() {
   panel.hidden = false;
   input.value = '';
-  resultBox.innerHTML = '<p class="search-hint">문제 · 정답 · 설명 · 폴더명을 검색합니다.</p>';
+  resultBox.innerHTML = '<p class="search-hint">문제 · 정답 · 작성 내용 · 폴더명을 검색합니다.</p>';
   setTimeout(() => input.focus(), 40);
 }
 
@@ -46,7 +46,7 @@ function run(rawQuery) {
   const q = rawQuery.trim().toLowerCase();
   resultBox.innerHTML = '';
   if (!q) {
-    resultBox.innerHTML = '<p class="search-hint">문제 · 정답 · 설명 · 폴더명을 검색합니다.</p>';
+    resultBox.innerHTML = '<p class="search-hint">문제 · 정답 · 작성 내용 · 폴더명을 검색합니다.</p>';
     return;
   }
 
@@ -60,7 +60,7 @@ function run(rawQuery) {
     const fields = [
       ['문제', rt.toPlain(item.questionText)],
       ['정답', rt.toPlain(item.answerText)],
-      ['설명', rt.toPlain(item.explanation)],
+      ['정답 작성하기', rt.toPlain(item.explanation)],
     ];
     for (const [label, text] of fields) {
       const idx = text.toLowerCase().indexOf(q);

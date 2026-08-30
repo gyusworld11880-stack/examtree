@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   sidebarWidth: 320, // 폴더 이름이 길고 4단계까지 들어가므로 넉넉히 잡는다
   lastFolderID: '',
   folderCountMode: 'deep', // 'deep' = 하위 폴더 포함, 'direct' = 직접 속한 문제만
+  rowHeightMode: 'normal', // 'compact' | 'normal' | 'full' — 행 높이 상한
   lastBackupAt: 0,
 };
 
@@ -354,6 +355,7 @@ export function blankQuestion(folderID, order) {
     id: uid(), folderID, order,
     questionText: '', answerCount: '', answerText: '', explanation: '',
     isReview: false, isReviewFlag: 0, reviewMarkedAt: 0,
+    rowHeight: 0, // 0 이면 전체 설정을 따른다. 값이 있으면 이 행만 그 높이로 고정.
     createdAt: t, updatedAt: t,
   };
 }
@@ -517,6 +519,7 @@ export async function importData(data) {
     explanation: String(q.explanation == null ? '' : q.explanation),
     isReview: !!q.isReview,
     reviewMarkedAt: Number(q.reviewMarkedAt) || 0,
+    rowHeight: Number(q.rowHeight) || 0,
     createdAt: Number(q.createdAt) || now(),
     updatedAt: Number(q.updatedAt) || now(),
   }));

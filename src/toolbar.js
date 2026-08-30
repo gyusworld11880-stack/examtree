@@ -30,6 +30,7 @@ export function init(a) {
   buttons.random = add(bar, { label: '랜덤', title: '표시 순서만 섞기', onClick: () => actions.toggleRandom() });
   group(bar);
 
+  buttons.rowHeight = add(bar, { label: '↕', title: '행 높이', onClick: (e) => rowHeightMenu(e.currentTarget) });
   buttons.size = add(bar, { label: 'Aa', title: '글자 크기', onClick: (e) => sizeMenu(e.currentTarget) });
   buttons.bold = add(bar, { label: 'B', title: '굵게 (Cmd+B)', cls: 'bold-btn', onClick: () => actions.bold() });
   buttons.color = add(bar, { label: '●', title: '글자 색', cls: 'color-btn', onClick: (e) => colorMenu(e.currentTarget) });
@@ -86,6 +87,19 @@ function colorMenu(anchor) {
     label: c.name,
     onClick: () => actions.color(c.value),
   })));
+}
+
+function rowHeightMenu(anchor) {
+  const cur = store.getSetting('rowHeightMode') || 'normal';
+  const item = (mode, label) => ({
+    label: cur === mode ? `${label} ✓` : label,
+    onClick: () => actions.setRowHeightMode(mode),
+  });
+  ui.popupMenu(anchor, [
+    item('compact', '좁게 (2줄)'),
+    item('normal', '보통 (5줄)'),
+    item('full', '전체 (자르지 않음)'),
+  ]);
 }
 
 function moreMenu(anchor) {

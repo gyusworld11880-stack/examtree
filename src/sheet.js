@@ -17,7 +17,8 @@ const FIELDS = [
   { key: 'answerCount', label: '답 개수', cls: 'c-n', editable: true, numeric: true, resizable: true },
   { key: 'answerText', label: '정답', cls: 'c-a', editable: true, hideable: true, resizable: true },
   // 통합 복습 화면은 PRD 71장의 구성(No·출처·문제·개수·정답)을 따른다.
-  { key: 'explanation', label: '설명', cls: 'c-e', editable: true, resizable: true, folderOnly: true },
+  // 저장 키는 explanation 그대로 둔다 — 이미 저장된 데이터와 백업 파일 호환을 위해.
+  { key: 'explanation', label: '정답 작성하기', cls: 'c-e', editable: true, resizable: true, folderOnly: true },
 ];
 
 const CHUNK = 60; // 첫 렌더에서 즉시 그리는 행 수
@@ -105,6 +106,7 @@ export function render() {
   renderHeader();
   renderColgroup();
   renderThead();
+  applyRowHeightMode();
 
   const list = currentList();
   dom.tbody.innerHTML = '';
@@ -221,6 +223,22 @@ function renderColgroup() {
   applyTableWidth();
 }
 
+// 행 높이 상한. 내용이 길어도 한 화면에 여러 문제가 보이게 한다.
+// 편집 중인 행과 개별 지정한 행은 이 상한을 벗어난다.
+const ROW_MODES = { compact: 2, normal: 5, full: 0 };
+const LINE_PX = 25;   // 16px * 1.55 줄간격
+const CELL_PAD = 18;  // .cell 위아래 패딩 합
+
+export function rowMaxHeight() {
+  const lines = ROW_MODES[store.getSetting('rowHeightMode')] ?? ROW_MODES.normal;
+  return lines ? lines * LINE_PX + CELL_PAD : 0;
+}
+
+function applyRowHeightMode() {
+  const max = rowMaxHeight();
+  dom.table.style.setProperty('--row-max', max ? max + 'px' : 'none');
+}
+
 /** 표 폭 = 컬럼 폭의 합. 확정값이라야 table-layout:fixed 가 동작한다. */
 function applyTableWidth(override) {
   const total = columns().reduce(
@@ -288,6 +306,8 @@ function buildRow(q, index) {
   tr.dataset.id = q.id;
   tr.dataset.index = index;
   if (selection.has(q.id)) tr.classList.add('selected');
+  // 이 행만 따로 높이를 지정했으면 전체 설정을 덮어쓴다.
+  if (q.rowHeight) tr.style.setProperty('--row-max', q.rowHeight + 'px');
 
   for (const c of columns()) {
     const td = document.createElement('td');
@@ -308,6 +328,13 @@ function buildRow(q, index) {
       grip.setAttribute('aria-label', `${index + 1}번 문제 선택/이동`);
       grip.addEventListener('pointerdown', (e) => startRowDrag(e, q));
       td.appendChild(grip);
+
+      // 행 아래 경계를 끌면 이 행만 높이를 바꾼다 (컬럼 폭 조절의 세로 버전).
+      const rz = document.createElement('span');
+      rz.className = 'row-resize';
+      rz.setAttribute('aria-label', '행 높이 조절');
+      rz.addEventListener('pointerdown', (e) => startRowResize(e, q, tr));
+      td.appendChild(rz);
     } else if (c.key === 'src') {
       const b = document.createElement('button');
       b.className = 'src-link';
@@ -759,6 +786,32 @@ function startRowDrag(e, q) {
       if (hint) applyReorder(dragIDs, hint);
     },
   });
+}
+
+// ── 행 높이 조절 ────────────────────────────────────────────
+function startRowResize(e, q, tr) {
+  e.preventDefault();
+  e.stopPropagation();
+  const startY = e.clientY;
+  const startH = tr.getBoundingClientRect().height;
+  let h = startH;
+  const MIN = 40;
+
+  const move = (ev) => {
+    h = Math.max(MIN, Math.round(startH + (ev.clientY - startY)));
+    tr.style.setProperty('--row-max', h + 'px');
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    // 원래대로 되돌리고 싶으면 아주 크게 늘리면 된다 → 개별 지정 해제
+    const reset = h >= 600;
+    if (reset) tr.style.removeProperty('--row-max');
+    store.updateQuestion(q.id, { rowHeight: reset ? 0 : h });
+    ui.toast(reset ? '이 행의 높이 지정을 해제했습니다.' : `행 높이 ${h}px`, { duration: 1600 });
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
 }
 
 function isOverSidebar(x, y) {

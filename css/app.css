@@ -419,6 +419,15 @@ body.sidebar-hidden #sidebar-resize { display: none; }
   word-break: break-word;
   font-size: 16px;   /* 16px 미만이면 iOS 가 편집 시 확대한다 */
   line-height: 1.55;
+  /* --row-max 는 sheet.js 가 정한다. 내용이 길어도 한 화면에 여러 문제가 보이게 자른다. */
+  max-height: var(--row-max, none);
+  overflow: hidden;
+}
+/* 편집 중인 행은 잘리지 않는다 — 쓰는 글자가 안 보이면 안 되니까. */
+tr.editing .cell,
+.cell:focus {
+  max-height: none;
+  overflow: visible;
 }
 .cell:focus { box-shadow: inset 0 0 0 2px var(--accent); border-radius: 3px; }
 .cell.num { text-align: center; }
@@ -483,6 +492,34 @@ tr.selected .row-grip { color: var(--accent); font-weight: 700; }
   height: 100%;
   cursor: col-resize;
   touch-action: none;
+}
+
+/* 행 아래 경계의 세로 크기 조절 손잡이 */
+.sheet td.c-no { position: relative; }
+.row-resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -5px;
+  height: 12px;
+  cursor: row-resize;
+  touch-action: none;
+  z-index: 1;
+}
+.row-resize::after {
+  content: '';
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  top: 5px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--line-strong);
+  opacity: 0;
+}
+.row-resize:hover::after { opacity: 1; }
+@media (pointer: coarse) {
+  .row-resize::after { opacity: .55; }
 }
 .add-row {
   margin: 12px;

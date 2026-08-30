@@ -103,6 +103,8 @@ function moreMenu(anchor) {
       onClick: () => store.setSetting('folderCountMode', 'direct'),
     },
     '-',
+    { label: '업데이트 확인', onClick: () => actions.checkUpdate() },
+    '-',
     { label: '기본 폴더 구조 넣기', danger: true, onClick: () => resetToSeed() },
     '-',
     { label: '선택 해제', onClick: () => sheet.clearSelection() },
@@ -127,7 +129,7 @@ async function resetToSeed() {
 function aboutDialog() {
   const last = store.getSetting('lastBackupAt');
   ui.confirmDialog({
-    title: 'ExamTree',
+    title: `ExamTree v${actions.version ? actions.version() : '?'}`,
     message: `폴더 ${store.folders.size}개 · 문제 ${store.questions.size}개 · 복습 표시 ${store.reviewCount()}개\n`
       + `마지막 백업: ${last ? new Date(last).toLocaleString('ko-KR') : '없음'}\n\n`
       + '데이터는 이 기기 안에만 저장됩니다. 정기적으로 백업하세요.',

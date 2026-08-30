@@ -13,6 +13,9 @@ import * as rt from './richtext.js';
 
 const NARROW = 900; // 이 폭 미만이면 사이드바를 서랍(Drawer)으로 쓴다
 
+// 화면에 보여 줄 버전. sw.js 의 VERSION 과 항상 같이 올린다.
+export const APP_VERSION = '1.2.1';
+
 // ── 화면 전환 ───────────────────────────────────────────────
 function openFolder(folderID, questionID) {
   if (!store.folders.has(folderID)) return;
@@ -92,6 +95,8 @@ const actions = {
   color: (c) => withActiveCell(() => rt.applyColor(c)),
 
   search: () => search.open(),
+  checkUpdate: () => checkForUpdate(),
+  version: () => APP_VERSION,
   undo: () => { sheet.flushPendingEdit(); undo.undo(); sheet.render(); toolbar.refresh(); },
   redo: () => { undo.redo(); sheet.render(); toolbar.refresh(); },
 };
@@ -181,10 +186,34 @@ function bindKeys() {
 }
 
 // ── 서비스 워커 ─────────────────────────────────────────────
+let swRegistration = null;
+
+/** ⋯ 메뉴의 '업데이트 확인'. 새 버전이 있으면 받아서 새로고침을 권한다. */
+async function checkForUpdate() {
+  if (!swRegistration) {
+    ui.toast(`업데이트를 확인할 수 없습니다. (현재 v${APP_VERSION})`);
+    return;
+  }
+  ui.toast('업데이트 확인 중…', { duration: 2000 });
+  try {
+    await swRegistration.update();
+    if (swRegistration.installing || swRegistration.waiting) {
+      ui.toast('새 버전을 받았습니다.', {
+        actionLabel: '새로고침', action: () => location.reload(), duration: 15000,
+      });
+    } else {
+      ui.toast(`최신 버전입니다. (v${APP_VERSION})`);
+    }
+  } catch {
+    ui.toast('업데이트를 확인하지 못했습니다. 인터넷 연결을 확인하세요.');
+  }
+}
+
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol === 'file:') return; // file:// 에서는 등록되지 않는다
   navigator.serviceWorker.register('./sw.js').then((reg) => {
+    swRegistration = reg;
     reg.addEventListener('updatefound', () => {
       const sw = reg.installing;
       if (!sw) return;

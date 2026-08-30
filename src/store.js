@@ -116,8 +116,9 @@ function buildSeedTree() {
       name: leaf ? node : node.name,
       parentFolderID: parentID,
       order,
-      // 처음에는 최상위만 펼쳐 둔다. 117개가 전부 펼쳐지면 트리가 너무 길어진다.
-      expanded: parentID === ROOT,
+      // 처음부터 구조 전체가 보이도록 모두 펼친 상태로 시작한다.
+      // 길면 사이드바 위의 '모두 접기'로 줄이면 된다.
+      expanded: true,
       createdAt: t,
       updatedAt: t,
     };
@@ -259,6 +260,20 @@ export function questionsInDeep(folderID) {
   };
   walk(folderID);
   return out;
+}
+
+/** 모든 폴더를 한꺼번에 펼치거나 접는다. 기록은 한 번의 트랜잭션으로 끝낸다. */
+export function setAllExpanded(expanded) {
+  const changed = [];
+  for (const f of folders.values()) {
+    if (f.expanded !== expanded) {
+      f.expanded = expanded;
+      f.updatedAt = now();
+      changed.push(f);
+    }
+  }
+  if (changed.length) { saveFolders(changed); emit({ folders: true }); }
+  return changed.length;
 }
 
 /** 하위 폴더에 문제가 하나라도 있으면 true */

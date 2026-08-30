@@ -42,6 +42,18 @@ export function render() {
   sep.className = 'tree-sep';
   el.appendChild(sep);
 
+  // 구조 전체를 한 번에 펼치거나 접는다. 폴더가 100개를 넘으면 손으로 하나씩 여는 게 고역이다.
+  const bar = document.createElement('div');
+  bar.className = 'tree-bar';
+  for (const [label, value] of [['모두 펼치기', true], ['모두 접기', false]]) {
+    const b = document.createElement('button');
+    b.className = 'tree-bar-btn';
+    b.textContent = label;
+    b.addEventListener('click', () => store.setAllExpanded(value));
+    bar.appendChild(b);
+  }
+  el.appendChild(bar);
+
   const list = document.createElement('div');
   list.className = 'tree-list';
   for (const f of store.rootFolders()) renderFolder(f, 0, list);

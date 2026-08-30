@@ -194,17 +194,38 @@ body.sidebar-hidden #sidebar-resize { display: none; }
   margin: 6px 4px;
 }
 
+/* 펼침 표시는 이게 접힌 폴더라는 유일한 신호다. 흐리면 하위가 없는 줄 안다. */
 .twisty {
-  width: 26px;
-  height: 34px;
+  width: 28px;
+  height: 40px;
   border: 0;
+  background: transparent;
+  color: var(--text);
+  opacity: .75;
+  cursor: pointer;
+  flex: none;
+  font-size: 15px;
+  line-height: 1;
+}
+.twisty:hover { opacity: 1; }
+.twisty.empty { visibility: hidden; }
+
+.tree-bar {
+  display: flex;
+  gap: 6px;
+  padding: 0 6px 6px;
+}
+.tree-bar-btn {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  flex: none;
-  font-size: 12px;
 }
-.twisty.empty { visibility: hidden; }
+.tree-bar-btn:hover { color: var(--accent); border-color: var(--accent); }
 
 .tree-name {
   flex: 1;

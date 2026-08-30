@@ -80,10 +80,22 @@ export function setView(next) {
 export function getView() { return view; }
 
 // ── 목록 계산 ───────────────────────────────────────────────
+/**
+ * 상위 폴더를 열었을 때 하위 챕터 문제까지 모아 보여주는 중인가.
+ * 이때는 여러 챕터가 섞이므로 챕터별 머리글을 넣고 순서 변경은 막는다.
+ */
+export function isAggregated() {
+  return view.kind === 'folder'
+    && !!view.folderID
+    && store.getSetting('includeSubQuestions') !== false
+    && store.hasSubQuestions(view.folderID);
+}
+
 export function currentList() {
-  const base = view.kind === 'review'
-    ? review.applyFilter(store.reviewQuestions())
-    : store.questionsIn(view.folderID);
+  let base;
+  if (view.kind === 'review') base = review.applyFilter(store.reviewQuestions());
+  else if (isAggregated()) base = store.questionsInDeep(view.folderID);
+  else base = store.questionsIn(view.folderID);
   return review.applyOrder(base);
 }
 
@@ -110,14 +122,14 @@ export function render() {
 
   const list = currentList();
   dom.tbody.innerHTML = '';
-  const first = list.slice(0, CHUNK);
-  const frag = document.createDocumentFragment();
-  first.forEach((q, i) => frag.appendChild(buildRow(q, i)));
-  dom.tbody.appendChild(frag);
-  pendingRows = { token, list, next: first.length };
+  pendingRows = { token, list, next: 0, lastFolder: null, grouped: isAggregated() };
   renderMore();
 
   dom.addRow.hidden = view.kind === 'review';
+  // 여러 챕터가 섞여 있으면 어디에 추가되는지 분명히 알려 준다.
+  dom.addRow.textContent = isAggregated()
+    ? `+ '${store.folders.get(view.folderID).name}'에 문제 추가`
+    : '+ 문제 추가';
 }
 
 /** 남은 행을 조금씩 채운다. 행 높이가 가변이라 가상 스크롤 대신 점진 렌더를 쓴다. */
@@ -127,7 +139,15 @@ function renderMore() {
   if (pendingRows.next >= list.length) { pendingRows = null; return; }
   const end = Math.min(pendingRows.next + CHUNK, list.length);
   const frag = document.createDocumentFragment();
-  for (let i = pendingRows.next; i < end; i++) frag.appendChild(buildRow(list[i], i));
+  for (let i = pendingRows.next; i < end; i++) {
+    const q = list[i];
+    // 여러 챕터가 섞여 있으면 챕터가 바뀔 때마다 머리글 줄을 넣는다.
+    if (pendingRows.grouped && q.folderID !== pendingRows.lastFolder) {
+      pendingRows.lastFolder = q.folderID;
+      frag.appendChild(buildGroupRow(q.folderID));
+    }
+    frag.appendChild(buildRow(q, i));
+  }
   dom.tbody.appendChild(frag);
   pendingRows.next = end;
   if (pendingRows.next < list.length) {
@@ -177,7 +197,26 @@ function renderHeader() {
     t.textContent = '폴더를 선택하세요';
     dom.crumbs.appendChild(t);
   }
-  dom.sub.textContent = `문제 ${store.directCountOf(view.folderID)}개`;
+
+  const agg = isAggregated();
+  dom.sub.textContent = agg
+    ? `문제 ${store.deepCountOf(view.folderID)}개 (하위 챕터 포함)`
+    : `문제 ${store.directCountOf(view.folderID)}개`;
+
+  // 하위 폴더에 문제가 있는 폴더에서만 켜고 끌 수 있게 한다.
+  if (view.folderID && store.hasSubQuestions(view.folderID)) {
+    const on = store.getSetting('includeSubQuestions') !== false;
+    const b = document.createElement('button');
+    b.className = 'sub-toggle' + (on ? ' on' : '');
+    b.textContent = on ? '하위 포함 ✓' : '하위 포함';
+    b.title = '상위 폴더에서 하위 챕터 문제까지 함께 보기';
+    b.addEventListener('click', () => {
+      flushPendingEdit();
+      store.setSetting('includeSubQuestions', !on);
+      render();
+    });
+    dom.filters.appendChild(b);
+  }
 }
 
 function renderReviewFilters() {
@@ -300,6 +339,27 @@ function startColResize(e, key) {
 }
 
 // ── 행 ──────────────────────────────────────────────────────
+/** 상위 폴더 화면에서 챕터 경계를 알려 주는 줄. 누르면 그 챕터로 들어간다. */
+function buildGroupRow(folderID) {
+  const tr = document.createElement('tr');
+  tr.className = 'group-row';
+  const td = document.createElement('td');
+  td.colSpan = columns().length + 1; // +1 은 여백 열
+  const b = document.createElement('button');
+  b.className = 'group-link';
+  const path = store.folderPath(folderID);
+  b.textContent = path.length ? path[path.length - 1].name : '(위치 없음)';
+  b.title = store.folderPathText(folderID) + ' — 이 챕터만 열기';
+  b.addEventListener('click', () => callbacks.onOpenFolder && callbacks.onOpenFolder(folderID));
+  td.appendChild(b);
+  const n = document.createElement('span');
+  n.className = 'group-count';
+  n.textContent = `${store.directCountOf(folderID)}개`;
+  td.appendChild(n);
+  tr.appendChild(td);
+  return tr;
+}
+
 function buildRow(q, index) {
   const tr = document.createElement('tr');
   tr.className = 'q-row';
@@ -324,7 +384,8 @@ function buildRow(q, index) {
     } else if (c.key === 'no') {
       const grip = document.createElement('button');
       grip.className = 'row-grip grip';
-      grip.textContent = String(index + 1);
+      // 챕터를 묶어 보여 줄 때는 그 챕터 안에서의 번호를 쓴다 (챕터에 들어갔을 때와 같은 번호).
+      grip.textContent = String((pendingRows && pendingRows.grouped ? q.order : index) + 1);
       grip.setAttribute('aria-label', `${index + 1}번 문제 선택/이동`);
       grip.addEventListener('pointerdown', (e) => startRowDrag(e, q));
       td.appendChild(grip);
@@ -891,6 +952,10 @@ function clearRowHint() {
 function applyReorder(dragIDs, hint) {
   if (view.kind === 'review') {
     ui.toast('통합 복습 화면에서는 순서를 바꿀 수 없습니다.');
+    return;
+  }
+  if (isAggregated()) {
+    ui.toast("여러 챕터가 섞여 있어 순서를 바꿀 수 없습니다. '하위 포함'을 끄거나 챕터를 직접 여세요.");
     return;
   }
   if (review.isRandom()) {

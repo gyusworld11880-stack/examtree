@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS = {
   lastFolderID: '',
   folderCountMode: 'deep', // 'deep' = 하위 폴더 포함, 'direct' = 직접 속한 문제만
   rowHeightMode: 'normal', // 'compact' | 'normal' | 'full' — 행 높이 상한
+  includeSubQuestions: true, // 상위 폴더를 열면 하위 챕터 문제까지 같이 보여준다
   lastBackupAt: 0,
 };
 
@@ -247,6 +248,23 @@ export function countOf(folderID) {
     : (deepCount.get(folderID) || 0);
 }
 export function directCountOf(folderID) { return directCount.get(folderID) || 0; }
+export function deepCountOf(folderID) { return deepCount.get(folderID) || 0; }
+
+/** 이 폴더와 모든 하위 폴더의 문제를, 폴더 트리 순서대로 모아서 돌려준다. */
+export function questionsInDeep(folderID) {
+  const out = [];
+  const walk = (fid) => {
+    for (const q of questionsIn(fid)) out.push(q);
+    for (const c of childFolders(fid)) walk(c.id);
+  };
+  walk(folderID);
+  return out;
+}
+
+/** 하위 폴더에 문제가 하나라도 있으면 true */
+export function hasSubQuestions(folderID) {
+  return deepCountOf(folderID) > directCountOf(folderID);
+}
 
 // ── 폴더 변경 ───────────────────────────────────────────────
 export function createFolder(name, parentFolderID = ROOT) {

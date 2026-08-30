@@ -400,6 +400,35 @@ body.sidebar-hidden #sidebar-resize { display: none; }
 .sheet tr.drop-before td { box-shadow: inset 0 2px 0 var(--accent); }
 .sheet tr.drop-after td { box-shadow: inset 0 -2px 0 var(--accent); }
 
+/* 상위 폴더 화면에서 챕터를 구분하는 머리글 줄 */
+.sheet tr.group-row td {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line-strong);
+  padding: 6px 12px;
+}
+.group-link {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+.group-link:hover { text-decoration: underline; }
+.group-count { color: var(--muted); font-size: 13px; margin-left: 8px; }
+
+.sub-toggle {
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+}
+.sub-toggle.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
 .c-pad {
   /* 남는 가로 공간을 흡수하는 빈 열. 자체 폭을 갖지 않아야 표가 화면을 넘지 않는다. */
   padding: 0 !important;

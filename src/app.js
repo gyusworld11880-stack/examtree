@@ -14,7 +14,7 @@ import * as rt from './richtext.js';
 const NARROW = 900; // 이 폭 미만이면 사이드바를 서랍(Drawer)으로 쓴다
 
 // 화면에 보여 줄 버전. sw.js 의 VERSION 과 항상 같이 올린다.
-export const APP_VERSION = '1.9.1';
+export const APP_VERSION = '1.9.2';
 
 // ── 화면 전환 ───────────────────────────────────────────────
 function openFolder(folderID, questionID) {
@@ -274,13 +274,19 @@ async function main() {
   // 화면 갱신: 내용만 바뀐 저장(quiet)은 다시 그리지 않는다 — 커서가 튀기 때문.
   store.subscribe((scope) => {
     if (scope.quiet) return;
+
+    // 폴더 목록은 항상 먼저 다시 그린다.
+    // (보던 폴더가 사라진 경우에도 트리에서 지워져야 하므로 아래보다 앞에 둔다)
+    if (scope.folders || scope.questions) tree.render();
+
     const v = sheet.getView();
-    // 백업 복원이나 폴더 구조 초기화로 보고 있던 폴더가 사라졌으면 갈 곳을 다시 잡는다.
+    // 폴더 삭제·백업 복원·구조 초기화로 보고 있던 폴더가 사라졌으면 갈 곳을 다시 잡는다.
     if (v.kind === 'folder' && v.folderID && !store.folders.has(v.folderID)) {
-      gotoDefault();
+      gotoDefault(); // 이 안에서 시트가 다시 그려진다
+      toolbar.refresh();
       return;
     }
-    if (scope.folders || scope.questions) tree.render();
+
     if (scope.folders || scope.questions) sheet.render();
     toolbar.refresh();
   });

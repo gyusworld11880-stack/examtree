@@ -1,0 +1,6 @@
+# ExamTree 는 빌드 도구를 쓰지 않으므로 저장소에 들어갈 게 거의 없다.
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+ExamTree_Backup_*.json

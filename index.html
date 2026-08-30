@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>ExamTree</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="description" content="기사시험 문제를 정리하고 정답을 가린 채 반복 복습하는 iPad 학습 노트">
+<meta name="theme-color" content="#0f172a">
+
+<!-- 홈 화면에 추가했을 때 주소창 없이 앱처럼 뜨게 한다 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ExamTree">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="stylesheet" href="./css/app.css">
+</head>
+<body>
+
+<header id="toolbar">
+  <div class="brand">ExamTree</div>
+  <div id="toolbar-actions" class="toolbar-actions"></div>
+</header>
+
+<div id="workspace">
+  <aside id="sidebar">
+    <div id="tree" class="tree"></div>
+  </aside>
+  <div id="sidebar-resize" role="separator" aria-label="사이드바 폭 조절"></div>
+
+  <main id="content">
+    <div class="sheet-header">
+      <div id="crumbs" class="crumbs"></div>
+      <div class="sheet-meta">
+        <span id="sheet-sub" class="sheet-sub"></span>
+        <span id="sheet-filters" class="sheet-filters"></span>
+      </div>
+    </div>
+
+    <div id="sheet-scroll" class="sheet-scroll">
+      <table id="sheet-table" class="sheet">
+        <colgroup id="sheet-colgroup"></colgroup>
+        <thead id="sheet-thead"></thead>
+        <tbody id="sheet-tbody"></tbody>
+      </table>
+      <button id="add-row" class="add-row">+ 문제 추가</button>
+    </div>
+  </main>
+</div>
+
+<div id="drawer-scrim"></div>
+
+<div id="search-panel" class="search-panel" hidden>
+  <div class="search-box">
+    <div class="search-bar">
+      <input id="search-input" class="search-input" type="search" placeholder="문제 · 정답 · 설명 · 폴더 검색"
+             autocomplete="off" autocorrect="off" spellcheck="false">
+      <button id="search-close" class="btn">닫기</button>
+    </div>
+    <div id="search-results" class="search-results"></div>
+  </div>
+</div>
+
+<div id="overlays"></div>
+<div id="toast-host" hidden></div>
+<p id="boot-error" class="boot-error" hidden></p>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>

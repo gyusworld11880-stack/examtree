@@ -29,6 +29,7 @@ let renderToken = 0;
 let pendingRows = null;      // 아직 그리지 않은 행 (점진 렌더용)
 export const selection = new Set();
 let lastSelectedID = null;
+let lastActiveRowID = null;  // 마지막으로 손댄 행. 삭제·이동의 기본 대상이 된다.
 
 // ── 초기화 ──────────────────────────────────────────────────
 export function init(cbs) {
@@ -46,6 +47,16 @@ export function init(cbs) {
   };
 
   dom.addRow.addEventListener('click', () => addQuestion());
+
+  const doneBtn = document.getElementById('done-editing');
+  if (doneBtn) doneBtn.addEventListener('click', () => finishEditing());
+
+  // 표의 빈 곳을 누르면 편집을 끝낸다. 아이패드에서 키보드를 내리는 가장 자연스러운 방법.
+  dom.scroll.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.cell, button, select, input, textarea, th')) return;
+    if (activeCell()) finishEditing();
+  });
+
   dom.tbody.addEventListener('focusin', onFocusIn);
   dom.tbody.addEventListener('focusout', onFocusOut);
   dom.tbody.addEventListener('input', onInput);
@@ -386,7 +397,10 @@ function onFocusIn(e) {
   if (!cell) return;
   if (editing && editing.el !== cell) commitEdit();
   editing = { id: cell.dataset.id, field: cell.dataset.field, before: cell.innerHTML, el: cell };
+  lastActiveRowID = cell.dataset.id; // 삭제·이동의 기본 대상
   cell.closest('tr').classList.add('editing');
+  showDoneButton(true);
+  cell.scrollIntoView({ block: 'nearest' });
 }
 
 function onFocusOut(e) {
@@ -396,7 +410,21 @@ function onFocusOut(e) {
   // 같은 셀 안에서의 포커스 이동이면 무시
   setTimeout(() => {
     if (editing && editing.el === cell && document.activeElement !== cell) commitEdit();
+    if (!activeCell()) showDoneButton(false);
   }, 0);
+}
+
+function showDoneButton(show) {
+  const b = document.getElementById('done-editing');
+  if (b) b.hidden = !show;
+}
+
+/** 편집을 끝내고 키보드를 내린다. '완료' 버튼, 빈 곳 탭, 마지막 행 Enter 에서 쓴다. */
+export function finishEditing() {
+  const cell = activeCell();
+  commitEdit();
+  if (cell) cell.blur();
+  showDoneButton(false);
 }
 
 function onInput() {
@@ -518,8 +546,10 @@ function moveFocus(cell, delta, mode) {
 
   const total = currentList().length;
   if (targetRow >= total) {
-    if (view.kind === 'review') return;
-    addQuestion();            // 마지막 행에서 더 내려가면 새 문제를 만든다
+    // 마지막 행에서 Enter 는 편집을 끝낸다. 예전처럼 새 행을 만들면
+    // 아이패드에서 키보드가 계속 떠 있고 빈 행만 쌓인다.
+    if (mode === 'row' || view.kind === 'review') { finishEditing(); return; }
+    addQuestion();            // Tab 으로 마지막 칸을 넘어갈 때만 새 문제를 만든다
     return;
   }
   if (targetRow < 0) return;
@@ -587,6 +617,14 @@ export function targetIDs() {
   if (selection.size) return [...selection];
   const cell = activeCell();
   if (cell) return [cell.dataset.id];
+  // '완료'로 편집을 끝낸 뒤에도 방금 손댄 행을 지우거나 옮길 수 있어야 한다.
+  // 어느 행이 대상인지 보이도록 선택 표시까지 해 준다.
+  if (lastActiveRowID && store.questions.has(lastActiveRowID)
+      && currentList().some((q) => q.id === lastActiveRowID)) {
+    selection.add(lastActiveRowID);
+    syncSelectionClasses();
+    return [lastActiveRowID];
+  }
   return [];
 }
 
@@ -704,7 +742,7 @@ function startRowDrag(e, q) {
 
   ui.beginDrag(e, {
     label,
-    onTap: (ev) => toggleSelect(q.id, ev.shiftKey),
+    onTap: (ev) => { lastActiveRowID = q.id; toggleSelect(q.id, ev.shiftKey); },
     onMove: (x, y) => {
       const overSidebar = isOverSidebar(x, y);
       if (overSidebar) { clearRowHint(); tree.highlightFolder(x, y); }

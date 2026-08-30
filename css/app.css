@@ -329,8 +329,29 @@ body.sidebar-hidden #sidebar-resize { display: none; }
   flex: 1;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 120px;
+  /* --kb 는 iPad 소프트 키보드 높이. app.js 가 visualViewport 로 갱신한다.
+     키보드가 올라와도 마지막 행이 가려지지 않게 그만큼 아래 여백을 늘린다. */
+  padding-bottom: calc(120px + var(--kb, 0px));
 }
+
+/* 편집 중에만 나타나는 '완료' 버튼. 아이패드에서 키보드를 내리는 유일한 확실한 수단이다. */
+.done-btn {
+  position: fixed;
+  right: calc(18px + env(safe-area-inset-right));
+  bottom: 18px;
+  z-index: 65;
+  min-height: 50px;
+  padding: 0 26px;
+  border: 0;
+  border-radius: 25px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.done-btn:active { filter: brightness(.9); }
 
 .sheet {
   /* 표 폭은 sheet.js 가 컬럼 폭의 합으로 직접 지정한다.

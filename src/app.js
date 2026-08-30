@@ -135,6 +135,26 @@ function bindSidebarResize() {
   document.getElementById('drawer-scrim').addEventListener('click', closeDrawer);
 }
 
+/**
+ * iPad 소프트 키보드가 올라오면 화면 아래쪽이 가려진다.
+ * 키보드 높이를 --kb 로 알려 주어 표 아래 여백과 '완료' 버튼 위치를 맞춘다.
+ */
+function bindViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const apply = () => {
+    const kb = Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop)));
+    document.documentElement.style.setProperty('--kb', kb + 'px');
+    const btn = document.getElementById('done-editing');
+    if (btn) btn.style.bottom = (kb + 18) + 'px';
+    const cell = sheet.activeCell();
+    if (kb > 0 && cell) cell.scrollIntoView({ block: 'nearest' });
+  };
+  vv.addEventListener('resize', apply);
+  vv.addEventListener('scroll', apply);
+  apply();
+}
+
 // ── 전역 단축키 ─────────────────────────────────────────────
 function bindKeys() {
   document.addEventListener('keydown', (e) => {
@@ -153,6 +173,7 @@ function bindKeys() {
     if (meta && e.key === 'Enter' && !inCell) { e.preventDefault(); sheet.addQuestion(); return; }
     if (e.key === 'Escape') {
       if (search.isOpen()) { search.close(); return; }
+      if (inCell) { sheet.finishEditing(); return; }
       if (document.querySelector('.popup-menu')) { ui.closeMenus(); return; }
       if (!inCell) sheet.clearSelection();
     }
@@ -211,6 +232,7 @@ async function main() {
 
   toolbar.init(actions);
   bindSidebarResize();
+  bindViewport();
   bindKeys();
 
   // 화면 갱신: 내용만 바뀐 저장(quiet)은 다시 그리지 않는다 — 커서가 튀기 때문.

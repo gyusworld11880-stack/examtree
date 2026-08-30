@@ -21,7 +21,10 @@ const KEYWORD_SIZE = 'xxx-large';
 
 export const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28];
 export const COLORS = [
+  // value 가 null 이면 색 지정을 지운다 → 라이트/다크 모드에 맞춰 자동으로 보인다.
+  { name: '기본 (자동)', value: null },
   { name: '검정', value: '#1c1c1e' },
+  { name: '흰색', value: '#ffffff' },
   { name: '빨강', value: '#e02424' },
   { name: '파랑', value: '#1d4ed8' },
   { name: '초록', value: '#15803d' },
@@ -144,6 +147,37 @@ export function toggleBold() {
 export function applyColor(color) {
   useCss();
   document.execCommand('foreColor', false, color);
+}
+
+// 색 지우기용 표시자. 실제로 쓸 일이 없는 값을 골라 두고, 칠한 뒤 그 색만 걷어낸다.
+const CLEAR_MARKER = 'rgb(1, 2, 3)';
+
+/**
+ * 선택 영역의 글자색 지정을 없앤다.
+ * 색을 고정하면 라이트/다크 모드 한쪽에서 안 보이게 되므로,
+ * 기본값으로 되돌릴 수단이 반드시 필요하다.
+ */
+export function clearColor(editable) {
+  useCss();
+  document.execCommand('foreColor', false, CLEAR_MARKER);
+  if (!editable) return;
+  for (const span of Array.from(editable.querySelectorAll('span'))) {
+    if (span.style.color.replace(/\s/g, '') !== CLEAR_MARKER.replace(/\s/g, '')) continue;
+    span.style.removeProperty('color');
+    if (!span.getAttribute('style')) {
+      // 남은 스타일이 없으면 껍데기를 벗긴다
+      const parent = span.parentNode;
+      while (span.firstChild) parent.insertBefore(span.firstChild, span);
+      parent.removeChild(span);
+    }
+  }
+}
+
+/** 셀 안에서 줄을 바꾼다. 저장 형식에 맞게 <br> 로 넣는다. */
+export function insertLineBreak() {
+  if (!document.execCommand('insertLineBreak')) {
+    document.execCommand('insertHTML', false, '<br>');
+  }
 }
 
 /** 선택 영역 글자 크기를 px 로 지정한다. */

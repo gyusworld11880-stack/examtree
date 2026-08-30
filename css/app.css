@@ -626,6 +626,20 @@ tr.selected .row-grip { color: var(--accent); font-weight: 700; }
 }
 .menu-item:hover { background: var(--panel-2); }
 .menu-item.danger { color: var(--danger); }
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-right: 10px;
+  vertical-align: -2px;
+  border: 1px solid var(--line-strong);
+}
+/* '기본 (자동)' 은 색이 없다는 뜻이므로 사선으로 표시한다 */
+.swatch.none {
+  background: linear-gradient(135deg, transparent 44%, var(--muted) 44%, var(--muted) 56%, transparent 56%);
+}
 .menu-sep { height: 1px; background: var(--line); margin: 5px 8px; }
 
 /* ── 토스트 ───────────────────────────────────────────── */

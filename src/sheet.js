@@ -512,10 +512,17 @@ function onCellKeyDown(e) {
     moveFocus(cell, e.shiftKey ? -1 : 1, 'field');
     return;
   }
-  if (e.key === 'Enter' && !e.shiftKey && !meta) {
+  if (e.key === 'Enter' && !meta) {
     e.preventDefault();
-    commitEdit();
-    moveFocus(cell, 1, 'row');
+    if (cell.dataset.field === 'answerCount') {
+      // 답 개수는 여러 줄일 이유가 없다 → 다음 칸으로 넘어간다
+      commitEdit();
+      moveFocus(cell, 1, 'field');
+      return;
+    }
+    // 서술형 답을 여러 줄로 쓸 수 있어야 하므로 셀 안에서 줄만 바꾼다.
+    // 아래 행으로 가려면 Tab 이나 방향키를 쓴다.
+    rt.insertLineBreak();
     return;
   }
   if (e.key === 'Escape') {

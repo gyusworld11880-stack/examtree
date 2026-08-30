@@ -175,7 +175,13 @@ export function popupMenu(anchor, items) {
     }
     const b = document.createElement('button');
     b.className = 'menu-item' + (item.danger ? ' danger' : '');
-    b.textContent = item.label;
+    if ('swatch' in item) {
+      const dot = document.createElement('span');
+      dot.className = 'swatch' + (item.swatch ? '' : ' none');
+      if (item.swatch) dot.style.background = item.swatch;
+      b.appendChild(dot);
+    }
+    b.appendChild(document.createTextNode(item.label));
     // 셀 선택 영역을 잃지 않도록 포커스 이동을 막는다 (글자 크기·색 적용에 필요).
     b.addEventListener('pointerdown', (e) => e.preventDefault());
     if (item.checked) b.classList.add('checked');

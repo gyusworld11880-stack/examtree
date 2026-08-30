@@ -85,6 +85,7 @@ function sizeMenu(anchor) {
 function colorMenu(anchor) {
   ui.popupMenu(anchor, rt.COLORS.map((c) => ({
     label: c.name,
+    swatch: c.value,   // 색 동그라미를 같이 보여 준다
     onClick: () => actions.color(c.value),
   })));
 }

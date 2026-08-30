@@ -14,7 +14,7 @@ import * as rt from './richtext.js';
 const NARROW = 900; // 이 폭 미만이면 사이드바를 서랍(Drawer)으로 쓴다
 
 // 화면에 보여 줄 버전. sw.js 의 VERSION 과 항상 같이 올린다.
-export const APP_VERSION = '1.6.0';
+export const APP_VERSION = '1.7.0';
 
 // ── 화면 전환 ───────────────────────────────────────────────
 function openFolder(folderID, questionID) {
@@ -69,18 +69,16 @@ const actions = {
     review.toggle();
     sheet.render();
     toolbar.refresh();
-    ui.toast(review.state.hideAnswers ? '복습 모드: 정답을 모두 숨겼습니다.' : '복습 모드를 껐습니다.');
+    ui.toast(review.state.hideAnswers
+      ? '정답을 모두 가렸습니다. 답 개수는 그대로 보입니다.'
+      : '정답 가리기를 껐습니다.');
   },
   hideAll() {
     sheet.flushPendingEdit();
     review.hideAll();
     sheet.render();
     toolbar.refresh();
-  },
-  revealAll() {
-    review.revealAll(sheet.visibleIDs());
-    sheet.render();
-    toolbar.refresh();
+    ui.toast('열어 본 정답을 모두 다시 가렸습니다.');
   },
   toggleRandom() {
     sheet.flushPendingEdit();

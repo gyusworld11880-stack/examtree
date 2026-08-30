@@ -347,8 +347,13 @@ function buildGroupRow(folderID) {
   td.colSpan = columns().length + 1; // +1 은 여백 열
   const b = document.createElement('button');
   b.className = 'group-link';
+  // 지금 열어 둔 폴더 아래의 경로를 전부 보여 준다. 상위 폴더 이름은 이미 위 breadcrumb 에 있으므로 뺀다.
   const path = store.folderPath(folderID);
-  b.textContent = path.length ? path[path.length - 1].name : '(위치 없음)';
+  const base = view.folderID ? store.folderPath(view.folderID).length : 0;
+  const rel = path.slice(base);
+  b.textContent = rel.length
+    ? rel.map((f) => f.name).join(' › ')
+    : `${path.length ? path[path.length - 1].name : '(위치 없음)'} (이 폴더에 직접 넣은 문제)`;
   b.title = store.folderPathText(folderID) + ' — 이 챕터만 열기';
   b.addEventListener('click', () => callbacks.onOpenFolder && callbacks.onOpenFolder(folderID));
   td.appendChild(b);

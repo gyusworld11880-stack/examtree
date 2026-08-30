@@ -24,9 +24,17 @@ export function init(a) {
   buttons.move = add(bar, { label: '이동', title: '선택한 문제를 다른 챕터로 이동', onClick: () => actions.moveSelected() });
   group(bar);
 
-  buttons.review = add(bar, { label: '복습 모드', title: '정답 가리기', onClick: () => actions.toggleReviewMode() });
-  buttons.hideAll = add(bar, { label: '전체 가리기', onClick: () => actions.hideAll() });
-  buttons.showAll = add(bar, { label: '전체 보기', onClick: () => actions.revealAll() });
+  buttons.review = add(bar, {
+    label: '정답 가리기',
+    title: '정답 가리기 켜기 / 끄기 (끄면 전부 다시 보입니다)',
+    onClick: () => actions.toggleReviewMode(),
+  });
+  // 가리는 중일 때만 나타난다. 열어 본 정답을 다시 덮어 처음부터 돌기 위한 버튼.
+  buttons.rehide = add(bar, {
+    label: '다시 가리기',
+    title: '열어 본 정답을 모두 다시 덮기',
+    onClick: () => actions.hideAll(),
+  });
   buttons.random = add(bar, { label: '랜덤', title: '표시 순서만 섞기', onClick: () => actions.toggleRandom() });
   buttons.clearWritten = add(bar, {
     label: '작성 비우기',
@@ -73,6 +81,7 @@ export function refresh() {
   buttons.undo.disabled = !undo.canUndo();
   buttons.redo.disabled = !undo.canRedo();
   buttons.review.classList.toggle('active', review.state.hideAnswers);
+  buttons.rehide.hidden = !review.state.hideAnswers;
   buttons.random.classList.toggle('active', review.isRandom());
   buttons.more.classList.toggle('badge', backup.backupOverdue());
 

@@ -40,10 +40,6 @@ export function hideAll() {
   state.revealed.clear();
 }
 
-export function revealAll(ids) {
-  state.hideAnswers = true;
-  for (const id of ids) state.revealed.add(id);
-}
 
 // ── 표시 순서 ───────────────────────────────────────────────
 export function shuffle(list) {

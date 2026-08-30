@@ -176,7 +176,7 @@ body.sidebar-hidden #sidebar-resize { display: none; }
   align-items: center;
   gap: 2px;
   min-height: 40px;
-  padding-left: calc(var(--depth, 0) * 14px);
+  padding-left: calc(var(--depth, 0) * 12px);
   border-radius: 9px;
   position: relative;
 }
@@ -333,8 +333,9 @@ body.sidebar-hidden #sidebar-resize { display: none; }
 }
 
 .sheet {
+  /* 표 폭은 sheet.js 가 컬럼 폭의 합으로 직접 지정한다.
+     width 가 확정값이어야 table-layout:fixed 가 적용되고, 긴 내용이 열을 밀어내지 못한다. */
   table-layout: fixed;
-  width: max-content;
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -378,7 +379,11 @@ body.sidebar-hidden #sidebar-resize { display: none; }
 .sheet tr.drop-before td { box-shadow: inset 0 2px 0 var(--accent); }
 .sheet tr.drop-after td { box-shadow: inset 0 -2px 0 var(--accent); }
 
-.c-pad { border-right: 0 !important; }
+.c-pad {
+  /* 남는 가로 공간을 흡수하는 빈 열. 자체 폭을 갖지 않아야 표가 화면을 넘지 않는다. */
+  padding: 0 !important;
+  border-right: 0 !important;
+}
 .sheet th:last-child, .sheet td:last-child { border-right: 0; }
 
 .c-star, .c-no { text-align: center; }

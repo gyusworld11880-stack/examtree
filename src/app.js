@@ -35,7 +35,12 @@ function openReview() {
   toolbar.refresh();
 }
 
-function onFolderRemoved() {
+function onFolderRemoved() { gotoDefault(); }
+
+/** 보고 있던 폴더가 사라졌을 때(삭제·복원·초기화) 갈 곳을 정한다. */
+function gotoDefault() {
+  const last = store.getSetting('lastFolderID');
+  if (last && store.folders.has(last)) { openFolder(last); return; }
   const first = store.rootFolders()[0];
   if (first) openFolder(first.id);
   else sheet.setView({ kind: 'folder', folderID: null });
@@ -211,19 +216,19 @@ async function main() {
   // 화면 갱신: 내용만 바뀐 저장(quiet)은 다시 그리지 않는다 — 커서가 튀기 때문.
   store.subscribe((scope) => {
     if (scope.quiet) return;
+    const v = sheet.getView();
+    // 백업 복원이나 폴더 구조 초기화로 보고 있던 폴더가 사라졌으면 갈 곳을 다시 잡는다.
+    if (v.kind === 'folder' && v.folderID && !store.folders.has(v.folderID)) {
+      gotoDefault();
+      return;
+    }
     if (scope.folders || scope.questions) tree.render();
     if (scope.folders || scope.questions) sheet.render();
     toolbar.refresh();
   });
   undo.onChange(() => toolbar.refresh());
 
-  const last = store.getSetting('lastFolderID');
-  if (last && store.folders.has(last)) openFolder(last);
-  else {
-    const first = store.rootFolders()[0];
-    if (first) openFolder(first.id);
-    else sheet.render();
-  }
+  gotoDefault();
 
   // 편집 중 내용이 유실되지 않도록 앱이 가려질 때 즉시 저장한다.
   const flush = () => sheet.flushPendingEdit();

@@ -207,6 +207,15 @@ function renderColgroup() {
   // 폭을 지정하지 않은 여백 열. 남는 가로 공간을 이 열이 흡수하므로
   // 사용자가 지정한 컬럼 폭이 화면 크기에 따라 늘어나지 않는다.
   dom.colgroup.appendChild(document.createElement('col'));
+  applyTableWidth();
+}
+
+/** 표 폭 = 컬럼 폭의 합. 확정값이라야 table-layout:fixed 가 동작한다. */
+function applyTableWidth(override) {
+  const total = columns().reduce(
+    (n, c) => n + (override && override.key === c.key ? override.width : widthOf(c.key)), 0,
+  );
+  dom.table.style.width = total + 'px';
 }
 
 function widthOf(key) {
@@ -248,6 +257,7 @@ function startColResize(e, key) {
   const move = (ev) => {
     w = Math.max(56, Math.round(startW + (ev.clientX - startX)));
     if (col) col.style.width = w + 'px';
+    applyTableWidth({ key, width: w });
   };
   const up = () => {
     window.removeEventListener('pointermove', move);
@@ -290,8 +300,11 @@ function buildRow(q, index) {
     } else if (c.key === 'src') {
       const b = document.createElement('button');
       b.className = 'src-link';
-      b.textContent = store.folderPathText(q.folderID) || '(위치 없음)';
-      b.title = '원래 챕터로 이동';
+      // 폴더가 깊어 전체 경로를 넣으면 뒤가 잘려 정작 중요한 챕터 이름이 사라진다.
+      // 그래서 챕터 이름만 보여주고 전체 경로는 툴팁으로 남긴다.
+      const path = store.folderPath(q.folderID);
+      b.textContent = path.length ? path[path.length - 1].name : '(위치 없음)';
+      b.title = (store.folderPathText(q.folderID) || '') + ' — 원래 챕터로 이동';
       b.addEventListener('click', () => {
         callbacks.onOpenSource && callbacks.onOpenSource(q.folderID, q.id);
       });

@@ -103,9 +103,25 @@ function moreMenu(anchor) {
       onClick: () => store.setSetting('folderCountMode', 'direct'),
     },
     '-',
+    { label: '기본 폴더 구조 넣기', danger: true, onClick: () => resetToSeed() },
+    '-',
     { label: '선택 해제', onClick: () => sheet.clearSelection() },
     { label: 'ExamTree 정보', onClick: () => aboutDialog() },
   ]);
+}
+
+async function resetToSeed() {
+  const ok = await ui.confirmDialog({
+    title: '모든 데이터를 지우고 기본 폴더 구조로 되돌립니다',
+    message: `현재 폴더 ${store.folders.size}개와 문제 ${store.questions.size}개가 전부 삭제되고 `
+      + '건축기사 실기 폴더 구조만 남습니다.\n\n'
+      + '실행취소로 되돌릴 수 없습니다. 필요하면 먼저 백업하세요.',
+    okLabel: '지우고 되돌리기', danger: true,
+  });
+  if (!ok) return;
+  await store.resetToSeed();
+  undo.clear();
+  ui.toast(`기본 폴더 구조를 넣었습니다. 폴더 ${store.folders.size}개`);
 }
 
 function aboutDialog() {

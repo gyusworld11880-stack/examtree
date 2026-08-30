@@ -7,6 +7,7 @@
 //  * isReview(boolean) 과 isReviewFlag(0|1) 은 항상 함께 바뀐다.
 
 import * as db from './db.js';
+import { SEED_TREE } from './seed-data.js';
 
 export const folders = new Map();   // id -> folder
 export const questions = new Map(); // id -> question
@@ -17,10 +18,10 @@ export const ROOT = '';
 const DEFAULT_SETTINGS = {
   // iPad 가로(약 1180pt)에서 사이드바 280pt 를 빼고도 가로 스크롤 없이 들어가는 값.
   columnWidths: {
-    star: 46, no: 54, src: 150,
+    star: 46, no: 54, src: 160,
     questionText: 280, answerCount: 70, answerText: 240, explanation: 150,
   },
-  sidebarWidth: 280,
+  sidebarWidth: 320, // 폴더 이름이 길고 4단계까지 들어가므로 넉넉히 잡는다
   lastFolderID: '',
   folderCountMode: 'deep', // 'deep' = 하위 폴더 포함, 'direct' = 직접 속한 문제만
   lastBackupAt: 0,
@@ -94,40 +95,62 @@ function normalizeQuestion(q) {
 }
 
 function seed() {
-  const t = now();
-  const mk = (name, parent, order) => {
-    const f = { id: uid(), name, parentFolderID: parent, order, expanded: true, createdAt: t, updatedAt: t };
-    folders.set(f.id, f);
-    return f;
-  };
-  const root = mk('일반기계기사', ROOT, 0);
-  const thermo = mk('열역학', root.id, 0);
-  const ch1 = mk('열역학 제1법칙', thermo.id, 0);
-  mk('열역학 제2법칙', thermo.id, 1);
-  mk('사이클', thermo.id, 2);
-  mk('유체역학', root.id, 1);
-  mk('재료역학', root.id, 2);
-
-  const samples = [
-    ['열전달의 세 가지 방식은?', '3', '전도 / 대류 / 복사', ''],
-    ['열역학 제1법칙의 핵심 내용을 쓰시오.', '2', '에너지 보존 / 내부에너지 변화', ''],
-  ];
-  samples.forEach(([questionText, answerCount, answerText, explanation], i) => {
-    const q = {
-      id: uid(), folderID: ch1.id, order: i,
-      questionText, answerCount, answerText, explanation,
-      isReview: false, isReviewFlag: 0, reviewMarkedAt: 0, createdAt: t, updatedAt: t,
-    };
-    questions.set(q.id, q);
-  });
-
-  settings.lastFolderID = ch1.id;
-  // 방금 만든 데이터에 대고 "백업한 지 오래되었다"고 알리지 않도록 기준 시각을 지금으로 잡는다.
-  settings.lastBackupAt = t;
+  buildSeedTree();
+  settings.lastBackupAt = now();
   saveFolders([...folders.values()]);
-  saveQuestions([...questions.values()]);
   saveSetting('lastFolderID');
   saveSetting('lastBackupAt');
+}
+
+/** SEED_TREE 를 실제 폴더 레코드로 만든다. 문자열 노드는 잎 폴더다. */
+function buildSeedTree() {
+  const t = now();
+  let firstLeaf = null;
+
+  const build = (node, parentID, order) => {
+    const leaf = typeof node === 'string';
+    const f = {
+      id: uid(),
+      name: leaf ? node : node.name,
+      parentFolderID: parentID,
+      order,
+      // 처음에는 최상위만 펼쳐 둔다. 117개가 전부 펼쳐지면 트리가 너무 길어진다.
+      expanded: parentID === ROOT,
+      createdAt: t,
+      updatedAt: t,
+    };
+    folders.set(f.id, f);
+    if (leaf) {
+      if (!firstLeaf) firstLeaf = f;
+    } else {
+      (node.children || []).forEach((c, i) => build(c, f.id, i));
+    }
+    return f;
+  };
+
+  build(SEED_TREE, ROOT, 0);
+
+  // 첫 챕터가 바로 보이도록 그 위 경로만 펼쳐 둔다.
+  if (firstLeaf) {
+    for (const f of folderPath(firstLeaf.id)) f.expanded = true;
+    settings.lastFolderID = firstLeaf.id;
+  }
+}
+
+/**
+ * 모든 데이터를 지우고 기본 폴더 구조로 되돌린다.
+ * 되돌릴 수 없으므로 호출하는 쪽에서 반드시 확인을 받아야 한다.
+ */
+export async function resetToSeed() {
+  await db.replaceAll({ folders: [], questions: [], settings: [] });
+  folders.clear();
+  questions.clear();
+  for (const k of Object.keys(settings)) delete settings[k];
+  Object.assign(settings, DEFAULT_SETTINGS);
+  settings.columnWidths = { ...DEFAULT_SETTINGS.columnWidths };
+  seed();
+  recomputeCounts();
+  emit({ folders: true, questions: true, settings: true });
 }
 
 // ── 조회 ────────────────────────────────────────────────────

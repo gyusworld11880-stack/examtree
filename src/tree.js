@@ -70,7 +70,8 @@ function reviewRow() {
 
   const count = document.createElement('span');
   count.className = 'tree-count';
-  count.textContent = store.reviewCount();
+  const n = store.reviewCount();
+  count.textContent = n ? n : '';
   row.appendChild(count);
   return row;
 }
@@ -101,13 +102,16 @@ function renderFolder(folder, depth, host) {
   const name = document.createElement('button');
   name.className = 'tree-name';
   name.textContent = folder.name;
+  name.title = folder.name; // 폴더가 깊어지면 이름이 잘리므로 전체 이름을 남긴다
   name.addEventListener('click', () => callbacks.onSelectFolder && callbacks.onSelectFolder(folder.id));
   name.addEventListener('dblclick', () => renameFolder(folder.id));
   row.appendChild(name);
 
   const count = document.createElement('span');
   count.className = 'tree-count';
-  count.textContent = store.countOf(folder.id);
+  // 빈 폴더가 많은 구조에서 0 이 줄줄이 보이면 시선만 어지럽다.
+  const n = store.countOf(folder.id);
+  count.textContent = n ? n : '';
   row.appendChild(count);
 
   const more = document.createElement('button');

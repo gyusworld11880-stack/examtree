@@ -14,7 +14,7 @@ import * as rt from './richtext.js';
 const NARROW = 900; // 이 폭 미만이면 사이드바를 서랍(Drawer)으로 쓴다
 
 // 화면에 보여 줄 버전. sw.js 의 VERSION 과 항상 같이 올린다.
-export const APP_VERSION = '1.9.2';
+export const APP_VERSION = '1.9.3';
 
 // ── 화면 전환 ───────────────────────────────────────────────
 function openFolder(folderID, questionID) {
@@ -154,13 +154,28 @@ function bindSidebarResize() {
 function bindViewport() {
   const vv = window.visualViewport;
   if (!vv) return;
+  let lastKb = -1;
   const apply = () => {
+    // 한글을 조합하는 중에는 아무것도 건드리지 않는다.
+    // 레이아웃이 바뀌거나 스크롤이 움직이면 iOS 입력기가 조합을 잘못 확정해
+    // '가나다라마바사' 가 '가나다라마바사사' 가 된다.
+    if (sheet.isComposing()) return;
+
     const kb = Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop)));
+    // 값이 실제로 달라졌을 때만 손댄다. 키보드 후보창 때문에 이벤트가 잦게 온다.
+    if (kb === lastKb) return;
+    lastKb = kb;
+
     document.documentElement.style.setProperty('--kb', kb + 'px');
     const btn = document.getElementById('done-editing');
     if (btn) btn.style.bottom = (kb + 18) + 'px';
+
+    // 편집 중인 셀이 실제로 키보드에 가려졌을 때만 끌어올린다.
     const cell = sheet.activeCell();
-    if (kb > 0 && cell) cell.scrollIntoView({ block: 'nearest' });
+    if (kb > 0 && cell) {
+      const r = cell.getBoundingClientRect();
+      if (r.bottom > vv.height) cell.scrollIntoView({ block: 'nearest' });
+    }
   };
   vv.addEventListener('resize', apply);
   vv.addEventListener('scroll', apply);

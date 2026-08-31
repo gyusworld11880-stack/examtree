@@ -62,6 +62,15 @@ export function init(cbs) {
   dom.tbody.addEventListener('focusout', onFocusOut);
   dom.tbody.addEventListener('input', onInput);
   dom.tbody.addEventListener('keydown', onCellKeyDown);
+
+  // 한글·일본어 등은 글자를 '조합'하는 중간 상태가 있다.
+  // 이 동안 DOM 을 건드리면 입력기가 조합을 잘못 확정해 글자가 겹치거나 사라진다.
+  dom.tbody.addEventListener('compositionstart', () => { composing = true; });
+  dom.tbody.addEventListener('compositionend', () => {
+    composing = false;
+    // 조합 중에 미뤄 둔 저장을 이제 처리한다.
+    if (editing) { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 400); }
+  });
   dom.tbody.addEventListener('paste', (e) => {
     if (e.target.classList.contains('cell')) rt.handlePaste(e);
   });
@@ -484,6 +493,10 @@ function cssEscape(s) {
 // ── 셀 편집 ─────────────────────────────────────────────────
 let editing = null;   // { id, field, before, el }
 let saveTimer = null;
+let composing = false; // 한글 조합 중인가 (compositionstart ~ compositionend)
+
+/** 한글 등을 조합하는 중이면 true. 이때는 DOM·스크롤을 건드리면 안 된다. */
+export function isComposing() { return composing; }
 
 function onFocusIn(e) {
   const cell = e.target.closest && e.target.closest('.cell');
@@ -523,6 +536,8 @@ export function finishEditing() {
 function onInput() {
   if (!editing) return;
   clearTimeout(saveTimer);
+  // 조합이 끝난 뒤에 저장한다. compositionend 에서 다시 예약된다.
+  if (composing) return;
   saveTimer = setTimeout(saveDraft, 400);
 }
 
@@ -542,7 +557,9 @@ export function commitEdit() {
 
   let after = rt.sanitize(el.innerHTML);
   if (field === 'answerCount') after = rt.toPlain(after).replace(/[^0-9]/g, '');
-  if (el.innerHTML !== after) el.innerHTML = after;
+  // 조합 중에 innerHTML 을 다시 쓰면 입력기가 글자를 한 번 더 확정한다.
+  // 그럴 땐 화면은 그대로 두고 저장만 한다.
+  if (el.innerHTML !== after && !composing) el.innerHTML = after;
   if (after === before) return;
 
   store.updateQuestion(id, { [field]: after });
@@ -564,6 +581,9 @@ export function flushPendingEdit() { commitEdit(); }
 function onCellKeyDown(e) {
   const cell = e.target.closest && e.target.closest('.cell');
   if (!cell) return;
+  // 조합 중의 키는 입력기 것이다. 가로채면 글자가 겹치거나 확정이 두 번 일어난다.
+  // (keyCode 229 는 조합 중임을 알리는 표준 신호다)
+  if (e.isComposing || composing || e.keyCode === 229) return;
   const meta = e.metaKey || e.ctrlKey;
 
   if (meta && e.key === 'Enter') {

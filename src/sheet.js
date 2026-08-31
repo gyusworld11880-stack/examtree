@@ -599,16 +599,16 @@ function onCellKeyDown(e) {
     return;
   }
   if (e.key === 'Enter' && !meta) {
-    e.preventDefault();
     if (cell.dataset.field === 'answerCount') {
       // 답 개수는 여러 줄일 이유가 없다 → 다음 칸으로 넘어간다
+      e.preventDefault();
       commitEdit();
       moveFocus(cell, 1, 'field');
       return;
     }
-    // 서술형 답을 여러 줄로 쓸 수 있어야 하므로 셀 안에서 줄만 바꾼다.
-    // 아래 행으로 가려면 Tab 이나 방향키를 쓴다.
-    rt.insertLineBreak();
+    // 줄바꿈은 브라우저에 맡긴다.
+    // 직접 <br> 을 넣으면 한글 조합과 충돌해 글자가 겹치거나 지울 때 되살아난다.
+    // 브라우저가 만드는 <div>/<p> 는 저장할 때 sanitize 가 <br> 로 바꿔 준다.
     return;
   }
   if (e.key === 'Escape') {
@@ -620,11 +620,18 @@ function onCellKeyDown(e) {
     cell.blur();
     return;
   }
+  // 방향키로 글자 끝을 넘어가면 옆 칸·위아래 행으로 넘어간다 (Excel 처럼).
   if (e.key === 'ArrowUp' && caretAtStart(cell)) {
     e.preventDefault(); commitEdit(); moveFocus(cell, -1, 'row'); return;
   }
   if (e.key === 'ArrowDown' && caretAtEnd(cell)) {
     e.preventDefault(); commitEdit(); moveFocus(cell, 1, 'row'); return;
+  }
+  if (e.key === 'ArrowRight' && caretAtEnd(cell)) {
+    e.preventDefault(); commitEdit(); moveFocus(cell, 1, 'field', 'start'); return;
+  }
+  if (e.key === 'ArrowLeft' && caretAtStart(cell)) {
+    e.preventDefault(); commitEdit(); moveFocus(cell, -1, 'field', 'end'); return;
   }
   if (cell.dataset.field === 'answerCount' && e.key.length === 1 && !meta && !/[0-9]/.test(e.key)) {
     e.preventDefault(); // 답 개수는 숫자만
@@ -633,7 +640,7 @@ function onCellKeyDown(e) {
 
 function caretAtStart(cell) {
   const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return false;
+  if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
   const r = sel.getRangeAt(0).cloneRange();
   r.selectNodeContents(cell);
   r.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset);
@@ -642,14 +649,14 @@ function caretAtStart(cell) {
 
 function caretAtEnd(cell) {
   const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return false;
+  if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
   const r = sel.getRangeAt(0).cloneRange();
   r.selectNodeContents(cell);
   r.setStart(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
   return r.toString().length === 0;
 }
 
-function moveFocus(cell, delta, mode) {
+function moveFocus(cell, delta, mode, caret = 'end') {
   const keys = editableKeys();
   const row = cell.closest('tr');
   const rowIndex = Number(row.dataset.index);
@@ -673,10 +680,10 @@ function moveFocus(cell, delta, mode) {
     return;
   }
   if (targetRow < 0) return;
-  focusCell(targetRow, keys[fieldIndex]);
+  focusCell(targetRow, keys[fieldIndex], caret);
 }
 
-export function focusCell(rowIndex, field) {
+export function focusCell(rowIndex, field, caret = 'end') {
   renderAllRows();
   const row = dom.tbody.querySelector(`tr[data-index="${rowIndex}"]`);
   if (!row) return;
@@ -684,14 +691,15 @@ export function focusCell(rowIndex, field) {
   if (!cell) cell = row.querySelector('.cell'); // 정답이 가려진 경우 등
   if (!cell) return;
   cell.focus();
-  placeCaretEnd(cell);
+  placeCaret(cell, caret);
   cell.scrollIntoView({ block: 'nearest' });
 }
 
-function placeCaretEnd(el) {
+/** 커서를 셀의 맨 앞이나 맨 뒤에 놓는다. 방향키로 넘어올 때 방향에 맞춰야 자연스럽다. */
+function placeCaret(el, where = 'end') {
   const r = document.createRange();
   r.selectNodeContents(el);
-  r.collapse(false);
+  r.collapse(where === 'start');
   const sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(r);

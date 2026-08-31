@@ -49,6 +49,37 @@ function filterStyle(el, out) {
   if (fw === 'bold' || fw === '700') out.style.fontWeight = 'bold';
 }
 
+function isBlockElement(n) {
+  if (!n || n.nodeType !== Node.ELEMENT_NODE) return false;
+  const tag = (n.tagName || '').toUpperCase();
+  return tag !== 'BR' && BLOCKISH.has(tag);
+}
+
+/** 이미 줄이 바뀐 상태인가. 줄바꿈이 두 번 들어가는 것을 막는다. */
+function endsWithBreak(container) {
+  const last = container.lastChild;
+  if (!last) return true;                       // 아직 아무것도 없으면 줄바꿈 불필요
+  if (last.nodeName === 'BR') return true;
+  if (last.nodeType === Node.TEXT_NODE && /\n$/.test(last.nodeValue)) return true;
+  return false;
+}
+
+/**
+ * 자식들을 정화해 out 에 담는다.
+ * <div>/<p> 같은 블록은 줄바꿈으로 환산하되, 반드시 블록 '앞'에 넣는다.
+ * 뒤에 넣으면 `가나다<div>라마</div>` 가 `가나다라마<br>` 가 되어 줄이 사라진다.
+ */
+function appendChildren(out, node, doc) {
+  for (const child of Array.from(node.childNodes)) {
+    const block = isBlockElement(child);
+    // 블록 앞뒤로 줄 경계를 세운다. endsWithBreak 검사가 줄바꿈 중복을 막는다.
+    if (block && !endsWithBreak(out)) out.appendChild(doc.createElement('br'));
+    const c = cleanNode(child, doc);
+    if (c) out.appendChild(c);
+    if (block && !endsWithBreak(out)) out.appendChild(doc.createElement('br'));
+  }
+}
+
 function cleanNode(node, doc) {
   if (node.nodeType === Node.TEXT_NODE) return doc.createTextNode(node.nodeValue);
   if (node.nodeType !== Node.ELEMENT_NODE) return null;
@@ -76,22 +107,7 @@ function cleanNode(node, doc) {
     out = span.getAttribute('style') ? span : doc.createDocumentFragment();
   }
 
-  for (const child of Array.from(node.childNodes)) {
-    const c = cleanNode(child, doc);
-    if (c) out.appendChild(c);
-  }
-
-  // <div>/<p> 같은 블록은 줄바꿈으로 환산한다.
-  if (!ALLOWED_TAGS.has(tag) && BLOCKISH.has(raw) && out.childNodes.length) {
-    if (out.nodeType === Node.ELEMENT_NODE) {
-      const frag = doc.createDocumentFragment();
-      frag.appendChild(out);
-      frag.appendChild(doc.createElement('br'));
-      out = frag;
-    } else {
-      out.appendChild(doc.createElement('br'));
-    }
-  }
+  appendChildren(out, node, doc);
   return out;
 }
 
@@ -102,10 +118,7 @@ export function sanitize(html) {
   tpl.innerHTML = String(html == null ? '' : html);
   const doc = tpl.content.ownerDocument;
   const frag = doc.createDocumentFragment();
-  for (const child of Array.from(tpl.content.childNodes)) {
-    const c = cleanNode(child, doc);
-    if (c) frag.appendChild(c);
-  }
+  appendChildren(frag, tpl.content, doc);
   const holder = document.createElement('div');
   holder.appendChild(frag);
   // 마지막에 남는 빈 줄바꿈 정리
@@ -170,13 +183,6 @@ export function clearColor(editable) {
       while (span.firstChild) parent.insertBefore(span.firstChild, span);
       parent.removeChild(span);
     }
-  }
-}
-
-/** 셀 안에서 줄을 바꾼다. 저장 형식에 맞게 <br> 로 넣는다. */
-export function insertLineBreak() {
-  if (!document.execCommand('insertLineBreak')) {
-    document.execCommand('insertHTML', false, '<br>');
   }
 }
 

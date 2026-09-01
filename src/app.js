@@ -15,7 +15,7 @@ import * as sync from './sync.js';
 const NARROW = 900; // 이 폭 미만이면 사이드바를 서랍(Drawer)으로 쓴다
 
 // 화면에 보여 줄 버전. sw.js 의 VERSION 과 항상 같이 올린다.
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.1.0';
 
 // ── 화면 전환 ───────────────────────────────────────────────
 function openFolder(folderID, questionID) {
@@ -214,7 +214,17 @@ async function syncPull({ confirm = false } = {}) {
       if (confirm) ui.toast('클라우드에 아직 올라간 내용이 없습니다. 아이패드에서 먼저 올려 주세요.', { duration: 6000 });
       return;
     }
-    // 화면 설정은 기기마다 달라야 하므로 유지한다.
+    // '정답 작성하기'는 직접 답을 써 보는 연습 칸이라 기기마다 따로 둔다.
+    // 내려받기가 이걸 덮으면 아이폰에서 쓴 답이 앱을 열 때마다 사라진다.
+    const localWriting = new Map();
+    for (const q of store.questions.values()) {
+      if (q.explanation) localWriting.set(q.id, q.explanation);
+    }
+    for (const q of data.questions || []) {
+      if (localWriting.has(q.id)) q.explanation = localWriting.get(q.id);
+    }
+
+    // 화면 설정도 기기마다 달라야 하므로 유지한다.
     await store.importData(data, { replaceSettings: false });
     undo.clear();
     gotoDefault();
@@ -299,6 +309,17 @@ function bindViewport() {
   vv.addEventListener('resize', apply);
   vv.addEventListener('scroll', apply);
   apply();
+
+  // 폰을 돌리면 카드 ↔ 표가 바뀌고 ★ 통합 복습의 열 구성도 달라진다.
+  // 경계를 넘을 때만 다시 그린다.
+  let wasNarrow = sheet.isNarrowScreen();
+  window.addEventListener('resize', () => {
+    const now = sheet.isNarrowScreen();
+    if (now === wasNarrow) return;
+    wasNarrow = now;
+    sheet.flushPendingEdit();
+    sheet.render();
+  });
 }
 
 // ── 전역 단축키 ─────────────────────────────────────────────

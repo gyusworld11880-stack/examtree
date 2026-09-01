@@ -46,6 +46,15 @@ function blockedByReadOnly() {
   return true;
 }
 
+/**
+ * 이 칸을 지금 고칠 수 있는가.
+ * 보기 전용 기기에서도 '정답 작성하기'는 열어 둔다 — 직접 답을 써 보는 연습 칸이고,
+ * 내려받기가 이 값을 덮지 않도록 되어 있어 지워질 걱정이 없다.
+ */
+function fieldEditable(key) {
+  return !readOnly || key === 'explanation';
+}
+
 // ── 초기화 ──────────────────────────────────────────────────
 export function init(cbs) {
   callbacks = cbs || {};
@@ -122,14 +131,19 @@ export function currentList() {
   return review.applyOrder(base);
 }
 
+/** 카드 레이아웃으로 바뀌는 폭. css/app.css 의 미디어 쿼리와 같은 값이어야 한다. */
+const NARROW_PX = 700;
+export function isNarrowScreen() { return window.innerWidth <= NARROW_PX; }
+
 function columns() {
-  return view.kind === 'review'
-    ? FIELDS.filter((f) => !f.folderOnly)
-    : FIELDS.filter((f) => !f.reviewOnly);
+  if (view.kind !== 'review') return FIELDS.filter((f) => !f.reviewOnly);
+  // 넓은 화면에서는 폭이 모자라 '정답 작성하기'를 뺀다(PRD 71장 구성).
+  // 좁은 화면은 카드로 펼쳐지므로 폭 제약이 없어 같이 보여준다.
+  return isNarrowScreen() ? FIELDS.slice() : FIELDS.filter((f) => !f.folderOnly);
 }
 
 function editableKeys() {
-  return columns().filter((f) => f.editable).map((f) => f.key);
+  return columns().filter((f) => f.editable && fieldEditable(f.key)).map((f) => f.key);
 }
 
 // ── 렌더 ────────────────────────────────────────────────────
@@ -460,7 +474,7 @@ function buildRow(q, index) {
 function buildCell(q, c) {
   const div = document.createElement('div');
   div.className = 'cell' + (c.numeric ? ' num' : '');
-  div.contentEditable = readOnly ? 'false' : 'true';
+  div.contentEditable = fieldEditable(c.key) ? 'true' : 'false';
   div.spellcheck = false;
   div.dataset.field = c.key;
   div.dataset.id = q.id;
@@ -832,7 +846,7 @@ function applyMove(ids, target) {
  * @param scope 'view' = 지금 보고 있는 목록, 'all' = 모든 챕터
  */
 export async function clearExplanations(scope = 'view') {
-  if (blockedByReadOnly()) return;
+  // 보기 전용 기기에서도 허용한다. 연습 칸이라 기기마다 따로 관리한다.
   flushPendingEdit();
   const pool = scope === 'all' ? [...store.questions.values()] : currentList();
   const targets = pool.filter((q) => !rt.isEmptyHtml(q.explanation));

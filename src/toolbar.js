@@ -89,9 +89,10 @@ export function refresh() {
   const isReviewView = sheet.getView().kind === 'review';
   const viewer = sheet.isReadOnly();
   buttons.add.disabled = isReviewView || viewer;
-  // 보기 전용 기기에서는 데이터를 바꾸는 버튼을 잠근다.
-  // 정답 가리기·랜덤·검색은 화면 상태일 뿐이라 그대로 쓸 수 있다.
-  for (const key of ['del', 'move', 'clearWritten', 'bold', 'size', 'color']) {
+  // 보기 전용 기기에서는 문제 자체를 바꾸는 버튼만 잠근다.
+  // 정답 가리기·랜덤·검색은 화면 상태이고,
+  // '작성 비우기'와 서식은 연습 칸('정답 작성하기')에 쓰이므로 열어 둔다.
+  for (const key of ['del', 'move']) {
     if (buttons[key]) buttons[key].disabled = viewer;
   }
 }

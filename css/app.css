@@ -933,5 +933,10 @@ tr.selected .row-grip { color: var(--accent); font-weight: 700; }
 body.read-only .add-row,
 body.read-only .tree-add,
 body.read-only .tree-more { display: none; }
-body.read-only .cell { cursor: default; }
+/* 보기 전용에서도 '정답 작성하기'는 쓸 수 있으므로 그 칸만 편집 가능한 모양을 유지한다 */
+body.read-only .cell[contenteditable="false"] { cursor: default; }
 body.read-only .star-btn { cursor: default; opacity: .85; }
+body.read-only .c-e .cell {
+  background: var(--panel-2);
+  border-radius: 4px;
+}

@@ -886,14 +886,15 @@ export async function clearExplanations(scope = 'view') {
 }
 
 function toggleStar(id) {
-  if (blockedByReadOnly()) return;
+  // ★ 는 보기 전용 기기에서도 누를 수 있다. 복습하다 어려운 문제를 만나면
+  // 그 자리에서 표시해야 하기 때문. 양쪽 별 표시는 바꾼 시각으로 합쳐진다.
   const q = store.questions.get(id);
   if (!q) return;
   const next = !q.isReview;
   const before = { isReview: q.isReview, reviewMarkedAt: q.reviewMarkedAt };
   undo.run({
     label: next ? '복습 표시' : '복습 표시 해제',
-    redo() { store.setReview(id, next); },
+    redo() { store.setReview(id, next); if (callbacks.onStarChanged) callbacks.onStarChanged(); },
     undo() {
       store.setReview(id, before.isReview);
       const cur = store.questions.get(id);

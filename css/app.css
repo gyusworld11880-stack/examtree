@@ -935,7 +935,7 @@ body.read-only .tree-add,
 body.read-only .tree-more { display: none; }
 /* 보기 전용에서도 '정답 작성하기'는 쓸 수 있으므로 그 칸만 편집 가능한 모양을 유지한다 */
 body.read-only .cell[contenteditable="false"] { cursor: default; }
-body.read-only .star-btn { cursor: default; opacity: .85; }
+/* ★ 는 보기 전용에서도 누를 수 있으므로 흐리게 하지 않는다 */
 body.read-only .c-e .cell {
   background: var(--panel-2);
   border-radius: 4px;

@@ -2,7 +2,7 @@
 // 앱 셸을 설치 시점에 통째로 캐시하고, 이후 같은 출처 요청은 캐시 우선으로 응답한다.
 // 학습 데이터는 IndexedDB 에 있으므로 여기서는 다루지 않는다.
 
-const VERSION = 'v2.1.0';
+const VERSION = 'v2.2.0';
 const CACHE = `examtree-${VERSION}`;
 
 const SHELL = [

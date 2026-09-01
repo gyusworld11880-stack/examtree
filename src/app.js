@@ -15,7 +15,7 @@ import * as sync from './sync.js';
 const NARROW = 900; // 이 폭 미만이면 사이드바를 서랍(Drawer)으로 쓴다
 
 // 화면에 보여 줄 버전. sw.js 의 VERSION 과 항상 같이 올린다.
-export const APP_VERSION = '2.1.0';
+export const APP_VERSION = '2.2.0';
 
 // ── 화면 전환 ───────────────────────────────────────────────
 function openFolder(folderID, questionID) {
@@ -121,6 +121,47 @@ function applyDeviceRole() {
   toolbar.refresh();
 }
 
+/**
+ * 별 표시를 양쪽에서 합친다. 켜고 끈 시각(reviewChangedAt)이 더 최근인 쪽이 이긴다.
+ * 아이폰에서 복습하다 누른 ★ 가 아이패드에도 가야 하고, 그 반대도 되어야 한다.
+ * @param remoteQuestions 클라우드에서 온 문제 배열 (제자리에서 수정된다)
+ * @returns 로컬이 이긴 항목이 있으면 true — 그때는 클라우드에도 반영해야 한다
+ */
+function mergeStars(remoteQuestions) {
+  let localWon = false;
+  for (const rq of remoteQuestions || []) {
+    const lq = store.questions.get(rq.id);
+    if (!lq) continue;
+    const localAt = Number(lq.reviewChangedAt) || 0;
+    const remoteAt = Number(rq.reviewChangedAt) || 0;
+    if (localAt > remoteAt) {
+      rq.isReview = lq.isReview;
+      rq.reviewMarkedAt = lq.reviewMarkedAt;
+      rq.reviewChangedAt = localAt;
+      localWon = true;
+    }
+  }
+  return localWon;
+}
+
+/** 별 표시를 눌렀을 때 클라우드에 조용히 반영한다. 연달아 눌러도 한 번만 보낸다. */
+let starSyncTimer = null;
+function scheduleStarSync() {
+  if (!sync.isConfigured()) return;
+  clearTimeout(starSyncTimer);
+  starSyncTimer = setTimeout(async () => {
+    try {
+      const remote = await sync.pull();
+      if (!remote) return;                 // 아직 아무것도 안 올라감
+      mergeStars(remote.questions);        // 내 최신 별 표시를 얹는다
+      await sync.push(remote);
+    } catch (err) {
+      // 오프라인이면 다음에 앱을 열 때 자동 내려받기가 처리한다.
+      console.warn('[ExamTree] 별 표시 동기화 미룸:', err.message);
+    }
+  }, 2500);
+}
+
 async function syncSetupDialog() {
   const cur = sync.getConfig();
   const values = await ui.formDialog({
@@ -184,7 +225,23 @@ async function syncPush() {
   ui.toast('올리는 중…', { duration: 2000 });
   try {
     const data = store.exportData();
-    await sync.push({ folders: data.folders, questions: data.questions, exportedAt: data.exportedAt });
+    const payload = { folders: data.folders, questions: data.questions, exportedAt: data.exportedAt };
+    // 아이폰에서 최근에 누른 ★ 를 덮어쓰지 않도록, 올리기 전에 클라우드 쪽 별 표시를 확인한다.
+    try {
+      const remote = await sync.pull();
+      if (remote) {
+        const remoteStars = new Map((remote.questions || []).map((q) => [q.id, q]));
+        for (const q of payload.questions) {
+          const r = remoteStars.get(q.id);
+          if (r && (Number(r.reviewChangedAt) || 0) > (Number(q.reviewChangedAt) || 0)) {
+            q.isReview = r.isReview;
+            q.reviewMarkedAt = r.reviewMarkedAt;
+            q.reviewChangedAt = r.reviewChangedAt;
+          }
+        }
+      }
+    } catch { /* 확인에 실패해도 올리기는 진행한다 */ }
+    await sync.push(payload);
     ui.toast(`올렸습니다. 문제 ${store.questions.size}개`);
   } catch (err) {
     ui.toast(err.message, { duration: 8000 });
@@ -224,11 +281,19 @@ async function syncPull({ confirm = false } = {}) {
       if (localWriting.has(q.id)) q.explanation = localWriting.get(q.id);
     }
 
+    // 이 기기에서 최근에 누른 ★ 가 내려받기로 지워지지 않게 합친다.
+    const starsToPushBack = mergeStars(data.questions);
+
     // 화면 설정도 기기마다 달라야 하므로 유지한다.
     await store.importData(data, { replaceSettings: false });
     undo.clear();
     gotoDefault();
     ui.toast(`내려받았습니다. 문제 ${store.questions.size}개`);
+
+    // 아직 클라우드에 못 올린 ★ 가 있었다면 지금 올려 둔다 (오프라인이었던 경우).
+    if (starsToPushBack) {
+      sync.push(data).catch((e) => console.warn('[ExamTree] 별 표시 되올리기 실패:', e.message));
+    }
   } catch (err) {
     // 자동 내려받기 실패는 조용히 넘어간다. 기기에 있던 내용으로 계속 쓰면 된다.
     if (confirm) ui.toast(err.message, { duration: 8000 });
@@ -414,6 +479,7 @@ async function main() {
     onOpenFolder: (id) => openFolder(id),
     onOpenSource: (folderID, questionID) => openFolder(folderID, questionID),
     onSelectionChange: () => toolbar.refresh(),
+    onStarChanged: () => scheduleStarSync(),
   });
 
   search.init({

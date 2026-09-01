@@ -388,6 +388,9 @@ export function blankQuestion(folderID, order) {
     id: uid(), folderID, order,
     questionText: '', answerCount: '', answerText: '', explanation: '',
     isReview: false, isReviewFlag: 0, reviewMarkedAt: 0,
+    // 별 표시를 마지막으로 바꾼 시각. 켜든 끄든 갱신한다.
+    // 기기 간 동기화에서 어느 쪽 별 표시가 최신인지 가리는 기준이다.
+    reviewChangedAt: 0,
     rowHeight: 0, // 0 이면 전체 설정을 따른다. 값이 있으면 이 행만 그 높이로 고정.
     createdAt: t, updatedAt: t,
   };
@@ -505,6 +508,7 @@ export function setReview(id, on) {
   q.isReview = !!on;
   q.isReviewFlag = on ? 1 : 0;
   q.reviewMarkedAt = on ? now() : 0;
+  q.reviewChangedAt = now();  // 끌 때도 기록해야 '해제'가 동기화된다
   q.updatedAt = now();
   saveQuestions([q]);
   emit({ questions: true });
@@ -558,6 +562,7 @@ export async function importData(data, opts = {}) {
     explanation: String(q.explanation == null ? '' : q.explanation),
     isReview: !!q.isReview,
     reviewMarkedAt: Number(q.reviewMarkedAt) || 0,
+    reviewChangedAt: Number(q.reviewChangedAt) || 0,
     rowHeight: Number(q.rowHeight) || 0,
     createdAt: Number(q.createdAt) || now(),
     updatedAt: Number(q.updatedAt) || now(),

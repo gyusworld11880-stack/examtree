@@ -15,7 +15,7 @@ import * as sync from './sync.js';
 const NARROW = 900; // 이 폭 미만이면 사이드바를 서랍(Drawer)으로 쓴다
 
 // 화면에 보여 줄 버전. sw.js 의 VERSION 과 항상 같이 올린다.
-export const APP_VERSION = '2.3.0';
+export const APP_VERSION = '2.4.0';
 
 // ── 화면 전환 ───────────────────────────────────────────────
 function openFolder(folderID, questionID) {
@@ -178,6 +178,96 @@ async function syncStarsOnStart() {
   }
 }
 
+// ── 자동 올리기 ─────────────────────────────────────────────
+// 세 겹으로 잡는다: ① 입력이 멈추고 30초 ② 앱을 나갈 때 ③ 못 올렸으면 다음 실행 때.
+// ③ 이 필요한 이유는 iOS 가 앱을 백그라운드로 보낼 때 요청을 끊을 수 있기 때문이다.
+
+const AUTO_PUSH_DELAY = 30_000;  // 마지막 편집 후 이만큼 조용하면 올린다
+const MIN_PUSH_GAP = 60_000;     // 올리기 사이 최소 간격 (커밋이 과하게 쌓이지 않게)
+
+let autoPushTimer = null;
+let pushing = false;
+
+/**
+ * 올릴 내용을 만든다. 수동·자동 올리기가 같이 쓴다.
+ * - '정답 작성하기'(explanation)는 뺀다. 기기마다 따로 관리되는 연습 칸이라
+ *   상대 기기가 쓰지도 않는데 파일만 키우고 커밋만 늘린다.
+ * - 클라우드 쪽 ★ 가 더 최근이면 그걸 살린다 (아이폰에서 방금 누른 것을 덮지 않게).
+ */
+async function buildPushPayload() {
+  const data = store.exportData();
+  const payload = {
+    exportedAt: data.exportedAt,
+    folders: data.folders,
+    questions: data.questions.map(({ explanation, ...rest }) => rest),
+  };
+  try {
+    const remote = await sync.pull();
+    if (remote) {
+      const remoteByID = new Map((remote.questions || []).map((q) => [q.id, q]));
+      for (const q of payload.questions) {
+        const r = remoteByID.get(q.id);
+        if (r && (Number(r.reviewChangedAt) || 0) > (Number(q.reviewChangedAt) || 0)) {
+          q.isReview = r.isReview;
+          q.reviewMarkedAt = r.reviewMarkedAt;
+          q.reviewChangedAt = r.reviewChangedAt;
+        }
+      }
+    }
+  } catch { /* 확인에 실패해도 올리기는 진행한다 */ }
+  return payload;
+}
+
+function canAutoPush() {
+  return sync.isConfigured() && !sync.isViewer();
+}
+
+/** 편집이 생겼다고 알린다. 조용해지면 올린다. */
+function markDirty() {
+  if (!canAutoPush()) return;
+  sync.setPending(true);
+  scheduleAutoPush();
+  updateSyncStatus();   // 타이머를 건 뒤에 갱신해야 '곧 올림…' 으로 나온다
+}
+
+function scheduleAutoPush(delay = AUTO_PUSH_DELAY) {
+  if (!canAutoPush()) return;
+  clearTimeout(autoPushTimer);
+  // 직전에 올린 지 얼마 안 됐으면 그만큼 더 기다린다.
+  const since = Date.now() - sync.lastPushAt();
+  const wait = Math.max(delay, MIN_PUSH_GAP - since);
+  autoPushTimer = setTimeout(() => { autoPushTimer = null; autoPush(); }, wait);
+}
+
+/** 조용히 올린다. 성공해도 알리지 않고, 실패하면 대기 상태로 남긴다. */
+async function autoPush() {
+  if (!canAutoPush() || pushing || !sync.hasPending()) return;
+  pushing = true;
+  updateSyncStatus();
+  try {
+    sheet.flushPendingEdit();
+    await sync.push(await buildPushPayload());   // 성공하면 sync 가 대기 표시를 지운다
+  } catch (err) {
+    console.warn('[ExamTree] 자동 올리기 미룸:', err.message);
+    scheduleAutoPush(MIN_PUSH_GAP);              // 나중에 다시
+  } finally {
+    pushing = false;
+    updateSyncStatus();
+  }
+}
+
+/** 문제 개수 옆에 조용히 상태를 적는다. 자동 동작이라 토스트는 쓰지 않는다. */
+function updateSyncStatus() {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  if (!sync.isConfigured()) { el.textContent = ''; el.hidden = true; return; }
+  el.hidden = false;
+  if (pushing) el.textContent = '올리는 중…';
+  else if (!sync.hasPending()) el.textContent = '동기화됨';
+  else if (autoPushTimer) el.textContent = '곧 올림…';
+  else el.textContent = '대기 중';
+}
+
 /** 별 표시를 눌렀을 때 클라우드에 조용히 반영한다. 연달아 눌러도 한 번만 보낸다. */
 let starSyncTimer = null;
 function scheduleStarSync() {
@@ -226,6 +316,7 @@ async function syncSetupDialog() {
 
   sync.setConfig(values);
   applyDeviceRole();
+  updateSyncStatus();
 
   if (!sync.isConfigured()) {
     ui.toast('동기화 설정을 지웠습니다.');
@@ -257,28 +348,18 @@ async function syncPush() {
   if (!ok) return;
 
   ui.toast('올리는 중…', { duration: 2000 });
+  clearTimeout(autoPushTimer);
+  autoPushTimer = null;
+  pushing = true;
+  updateSyncStatus();
   try {
-    const data = store.exportData();
-    const payload = { folders: data.folders, questions: data.questions, exportedAt: data.exportedAt };
-    // 아이폰에서 최근에 누른 ★ 를 덮어쓰지 않도록, 올리기 전에 클라우드 쪽 별 표시를 확인한다.
-    try {
-      const remote = await sync.pull();
-      if (remote) {
-        const remoteStars = new Map((remote.questions || []).map((q) => [q.id, q]));
-        for (const q of payload.questions) {
-          const r = remoteStars.get(q.id);
-          if (r && (Number(r.reviewChangedAt) || 0) > (Number(q.reviewChangedAt) || 0)) {
-            q.isReview = r.isReview;
-            q.reviewMarkedAt = r.reviewMarkedAt;
-            q.reviewChangedAt = r.reviewChangedAt;
-          }
-        }
-      }
-    } catch { /* 확인에 실패해도 올리기는 진행한다 */ }
-    await sync.push(payload);
+    await sync.push(await buildPushPayload());
     ui.toast(`올렸습니다. 문제 ${store.questions.size}개`);
   } catch (err) {
     ui.toast(err.message, { duration: 8000 });
+  } finally {
+    pushing = false;
+    updateSyncStatus();
   }
   toolbar.refresh();
 }
@@ -528,6 +609,14 @@ async function main() {
   bindKeys();
 
   // 화면 갱신: 내용만 바뀐 저장(quiet)은 다시 그리지 않는다 — 커서가 튀기 때문.
+  // 올릴 거리가 생겼는지 따로 지켜본다. 셀 입력은 quiet 로 오므로 위 구독으로는 못 잡는다.
+  store.subscribe((scope) => {
+    if (!scope.folders && !scope.questions) return;
+    // '정답 작성하기'만 바뀐 경우는 올릴 필요가 없다 (기기마다 따로 관리되는 연습 칸).
+    if (scope.fields && scope.fields.every((f) => f === 'explanation' || f === 'updatedAt')) return;
+    markDirty();
+  });
+
   store.subscribe((scope) => {
     if (scope.quiet) return;
 
@@ -552,9 +641,18 @@ async function main() {
 
   // 편집 중 내용이 유실되지 않도록 앱이 가려질 때 즉시 저장한다.
   const flush = () => sheet.flushPendingEdit();
-  window.addEventListener('pagehide', flush);
+  window.addEventListener('pagehide', () => { flush(); autoPush(); });
   window.addEventListener('beforeunload', flush);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      flush();
+      autoPush();               // 나갈 때 한 번 더 시도 (끊기면 대기 표시가 남아 다음에 처리)
+    } else if (sync.isConfigured()) {
+      // 앞으로 다시 나왔을 때: 보기 전용은 최신 내용을, 주 기기는 ★ 만 맞춘다.
+      if (sync.isViewer()) syncPull();
+      else { syncStarsOnStart(); if (sync.hasPending()) scheduleAutoPush(3000); }
+    }
+  });
 
   window.addEventListener('examtree:saveerror', () => {
     ui.toast('저장에 실패했습니다. 저장 공간을 확인하고 백업을 권장합니다.', { duration: 6000 });
@@ -573,8 +671,12 @@ async function main() {
   // 오프라인이면 조용히 실패하고 기기에 있던 내용으로 정상 동작한다.
   if (sync.isConfigured()) {
     if (sync.isViewer()) syncPull();       // 전체 내려받기 (★ 도 여기서 합쳐진다)
-    else syncStarsOnStart();               // 주 기기는 ★ 만 맞춘다 (안 올린 입력을 지키려고)
+    else {
+      syncStarsOnStart();                  // 주 기기는 ★ 만 맞춘다 (안 올린 입력을 지키려고)
+      if (sync.hasPending()) scheduleAutoPush(5000); // 지난번에 못 올린 게 있으면 마저 올린다
+    }
   }
+  updateSyncStatus();
 
   registerServiceWorker();
   document.body.classList.add('ready');

@@ -10,6 +10,8 @@ const LS_REPO = 'examtree.sync.repo';    // "owner/name"
 const LS_TOKEN = 'examtree.sync.token';
 const LS_ROLE = 'examtree.sync.role';    // 'main' | 'viewer'
 const LS_LAST = 'examtree.sync.lastAt';
+const LS_PENDING = 'examtree.sync.pending'; // 아직 클라우드에 못 올린 변경이 있는가
+const LS_PUSHED = 'examtree.sync.pushedAt'; // 마지막으로 올린 시각 (너무 잦은 커밋 방지)
 
 const FILE = 'data.json';
 const API = 'https://api.github.com';
@@ -55,6 +57,17 @@ export function lastSyncAt() {
 }
 
 function markSynced() { ls(LS_LAST, String(Date.now())); }
+
+// ── 아직 못 올린 변경 ───────────────────────────────────────
+// 앱이 꺼져도 남아야 다음 실행에서 마저 올릴 수 있으므로 localStorage 에 둔다.
+
+export function hasPending() { return ls(LS_PENDING) === '1'; }
+export function setPending(on) { ls(LS_PENDING, on ? '1' : null); }
+
+export function lastPushAt() {
+  const v = Number(ls(LS_PUSHED));
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
 
 // ── UTF-8 ↔ base64 ─────────────────────────────────────────
 // btoa 는 바이트만 받는다. 한글을 그대로 넣으면 예외가 난다.
@@ -153,6 +166,8 @@ export async function push(data) {
     });
     if (!res.ok) throw describe(res);
     markSynced();
+    ls(LS_PUSHED, String(Date.now()));
+    setPending(false);   // 성공했을 때만 대기 표시를 지운다
   } catch (err) {
     throw wrapNetworkError(err);
   }

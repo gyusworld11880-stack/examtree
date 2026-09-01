@@ -424,7 +424,9 @@ export function updateQuestion(id, patch) {
   if ('isReview' in patch) q.isReviewFlag = q.isReview ? 1 : 0;
   saveQuestions([q]);
   // quiet: 내용만 바뀌었을 뿐 행 구성은 그대로 → 시트를 다시 그리지 않는다.
-  emit({ questions: true, quiet: true });
+  // fields: 어떤 항목이 바뀌었는지. 동기화가 '올릴 값이 바뀌었나'를 판단하는 데 쓴다
+  // ('정답 작성하기'는 기기마다 따로라 올릴 필요가 없다).
+  emit({ questions: true, quiet: true, fields: Object.keys(patch) });
   return q;
 }
 

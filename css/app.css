@@ -337,6 +337,16 @@ body.sidebar-hidden #sidebar-resize { display: none; }
   margin-top: 2px;
 }
 .sheet-sub { color: var(--muted); font-size: 14px; }
+
+/* 자동 올리기 상태. 자동 동작이라 토스트로 알리지 않고 여기에 조용히 적는다. */
+.sync-status {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  white-space: nowrap;
+}
 .sheet-filters { display: flex; gap: 6px; }
 
 .filter-select {

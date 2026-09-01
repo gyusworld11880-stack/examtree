@@ -31,6 +31,20 @@ let pendingRows = null;      // 아직 그리지 않은 행 (점진 렌더용)
 export const selection = new Set();
 let lastSelectedID = null;
 let lastActiveRowID = null;  // 마지막으로 손댄 행. 삭제·이동의 기본 대상이 된다.
+let readOnly = false;        // 보기 전용 기기(아이폰)에서는 데이터를 못 바꾼다
+
+/** 보기 전용 여부를 바꾼다. 자동 내려받기가 덮어쓰므로 편집을 아예 막는다. */
+export function setReadOnly(on) {
+  readOnly = !!on;
+  document.body.classList.toggle('read-only', readOnly);
+}
+export function isReadOnly() { return readOnly; }
+
+function blockedByReadOnly() {
+  if (!readOnly) return false;
+  ui.toast('보기 전용 기기입니다. 문제 편집은 아이패드에서 하세요.');
+  return true;
+}
 
 // ── 초기화 ──────────────────────────────────────────────────
 export function init(cbs) {
@@ -386,6 +400,7 @@ function buildRow(q, index) {
   for (const c of columns()) {
     const td = document.createElement('td');
     td.className = c.cls;
+    td.dataset.label = c.label; // 좁은 화면(아이폰)에서 카드 항목 이름으로 쓰인다
 
     if (c.key === 'star') {
       const b = document.createElement('button');
@@ -445,7 +460,7 @@ function buildRow(q, index) {
 function buildCell(q, c) {
   const div = document.createElement('div');
   div.className = 'cell' + (c.numeric ? ' num' : '');
-  div.contentEditable = 'true';
+  div.contentEditable = readOnly ? 'false' : 'true';
   div.spellcheck = false;
   div.dataset.field = c.key;
   div.dataset.id = q.id;
@@ -712,6 +727,7 @@ export function activeCell() {
 
 // ── 문제 추가 / 삭제 / 이동 ─────────────────────────────────
 export function addQuestion(index) {
+  if (blockedByReadOnly()) return;
   if (view.kind === 'review') {
     ui.toast('통합 복습 화면에서는 문제를 추가할 수 없습니다. 챕터를 열어 추가하세요.');
     return;
@@ -757,6 +773,7 @@ export function targetIDs() {
 }
 
 export async function deleteSelected() {
+  if (blockedByReadOnly()) return;
   const ids = targetIDs();
   if (!ids.length) { ui.toast('삭제할 문제를 선택하세요. (번호를 눌러 선택)'); return; }
   commitEdit();
@@ -787,6 +804,7 @@ export async function deleteSelected() {
 }
 
 export async function moveSelected() {
+  if (blockedByReadOnly()) return;
   const ids = targetIDs();
   if (!ids.length) { ui.toast('이동할 문제를 선택하세요. (번호를 눌러 선택)'); return; }
   commitEdit();
@@ -814,6 +832,7 @@ function applyMove(ids, target) {
  * @param scope 'view' = 지금 보고 있는 목록, 'all' = 모든 챕터
  */
 export async function clearExplanations(scope = 'view') {
+  if (blockedByReadOnly()) return;
   flushPendingEdit();
   const pool = scope === 'all' ? [...store.questions.values()] : currentList();
   const targets = pool.filter((q) => !rt.isEmptyHtml(q.explanation));
@@ -853,6 +872,7 @@ export async function clearExplanations(scope = 'view') {
 }
 
 function toggleStar(id) {
+  if (blockedByReadOnly()) return;
   const q = store.questions.get(id);
   if (!q) return;
   const next = !q.isReview;
@@ -906,6 +926,7 @@ let rowHint = null;
 
 function startRowDrag(e, q) {
   e.preventDefault();
+  if (readOnly) { toggleSelect(q.id, e.shiftKey); return; }
   const dragIDs = selection.has(q.id) && selection.size > 1 ? [...selection] : [q.id];
   const label = dragIDs.length > 1
     ? `문제 ${dragIDs.length}개`

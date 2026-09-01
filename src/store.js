@@ -532,7 +532,13 @@ export function exportData() {
   };
 }
 
-export async function importData(data) {
+/**
+ * 백업 복원 / 동기화 내려받기 공용 경로.
+ * @param opts.replaceSettings false 면 이 기기의 설정(컬럼 폭·사이드바 폭 등)을 그대로 둔다.
+ *   동기화는 폴더·문제만 맞추고 화면 설정은 기기마다 달라야 하므로 false 로 부른다.
+ */
+export async function importData(data, opts = {}) {
+  const replaceSettings = opts.replaceSettings !== false;
   const fs = (data.folders || []).map((f) => ({
     id: String(f.id),
     name: String(f.name == null ? '이름 없음' : f.name),
@@ -556,9 +562,13 @@ export async function importData(data) {
     createdAt: Number(q.createdAt) || now(),
     updatedAt: Number(q.updatedAt) || now(),
   }));
-  const ss = Array.isArray(data.settings)
+  const incoming = Array.isArray(data.settings)
     ? data.settings.filter((s) => s && typeof s.key === 'string')
     : [];
+  // 설정을 유지할 때는 지금 기기 값을 그대로 다시 써 넣는다 (replaceAll 이 스토어를 비우므로).
+  const ss = replaceSettings
+    ? incoming
+    : Object.entries(settings).map(([key, value]) => ({ key, value }));
 
   await db.replaceAll({ folders: fs, questions: qs, settings: ss });
   await load();

@@ -124,6 +124,74 @@ export function promptDialog({ title, value = '', placeholder = '', okLabel = '�
   });
 }
 
+/**
+ * 여러 값을 한 번에 받는 폼 대화상자.
+ * fields: [{ key, label, type:'text'|'password'|'select', value, placeholder, hint, options:[{value,label}] }]
+ * @returns 입력값 객체, 취소하면 null
+ */
+export function formDialog({ title, message, fields, okLabel = '저장' }) {
+  const inputs = {};
+  const read = () => {
+    const out = {};
+    for (const f of fields) out[f.key] = inputs[f.key].value.trim();
+    return out;
+  };
+  return openModal({
+    title,
+    onKey: (e, close) => {
+      if (e.key === 'Enter' && e.target.tagName !== 'SELECT') { e.preventDefault(); close(read()); }
+    },
+    build: (dialog, close) => {
+      if (message) {
+        const p = document.createElement('p');
+        p.className = 'dialog-message';
+        p.textContent = message;
+        dialog.appendChild(p);
+      }
+      for (const f of fields) {
+        const wrap = document.createElement('label');
+        wrap.className = 'field';
+        const name = document.createElement('span');
+        name.className = 'field-label';
+        name.textContent = f.label;
+        wrap.appendChild(name);
+
+        let el;
+        if (f.type === 'select') {
+          el = document.createElement('select');
+          el.className = 'dialog-input';
+          for (const o of f.options) el.appendChild(new Option(o.label, o.value));
+          el.value = f.value || '';
+        } else {
+          el = document.createElement('input');
+          el.className = 'dialog-input';
+          el.type = f.type === 'password' ? 'password' : 'text';
+          el.value = f.value || '';
+          el.placeholder = f.placeholder || '';
+          el.autocapitalize = 'off';
+          el.autocomplete = 'off';
+          el.spellcheck = false;
+        }
+        inputs[f.key] = el;
+        wrap.appendChild(el);
+
+        if (f.hint) {
+          const hint = document.createElement('span');
+          hint.className = 'field-hint';
+          hint.textContent = f.hint;
+          wrap.appendChild(hint);
+        }
+        dialog.appendChild(wrap);
+      }
+      buttonRow(dialog, [
+        { label: '취소', onClick: () => close(null) },
+        { label: okLabel, variant: 'primary', onClick: () => close(read()) },
+      ]);
+      setTimeout(() => { const first = inputs[fields[0].key]; if (first) first.focus(); }, 30);
+    },
+  });
+}
+
 /** 폴더 하나를 고르는 대화상자. excludeSubtreeOf 하위는 선택할 수 없다. */
 export function pickFolder({ title = '폴더 선택', excludeSubtreeOf = null, allowRoot = false }) {
   return openModal({

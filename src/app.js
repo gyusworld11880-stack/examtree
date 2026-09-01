@@ -10,11 +10,12 @@ import * as search from './search.js';
 import * as toolbar from './toolbar.js';
 import * as backup from './backup.js';
 import * as rt from './richtext.js';
+import * as sync from './sync.js';
 
 const NARROW = 900; // 이 폭 미만이면 사이드바를 서랍(Drawer)으로 쓴다
 
 // 화면에 보여 줄 버전. sw.js 의 VERSION 과 항상 같이 올린다.
-export const APP_VERSION = '1.9.5';
+export const APP_VERSION = '2.0.0';
 
 // ── 화면 전환 ───────────────────────────────────────────────
 function openFolder(folderID, questionID) {
@@ -101,12 +102,130 @@ const actions = {
     sheet.render();
   },
 
+  syncSetup: () => syncSetupDialog(),
+  syncPush: () => syncPush(),
+  syncPull: () => syncPull({ confirm: true }),
+
   search: () => search.open(),
   checkUpdate: () => checkForUpdate(),
   version: () => APP_VERSION,
   undo: () => { sheet.flushPendingEdit(); undo.undo(); sheet.render(); toolbar.refresh(); },
   redo: () => { undo.redo(); sheet.render(); toolbar.refresh(); },
 };
+
+// ── 기기 간 동기화 ──────────────────────────────────────────
+// 폴더·문제만 주고받는다. 컬럼 폭 같은 화면 설정은 기기마다 달라야 하므로 제외한다.
+
+function applyDeviceRole() {
+  sheet.setReadOnly(sync.isViewer());
+  toolbar.refresh();
+}
+
+async function syncSetupDialog() {
+  const cur = sync.getConfig();
+  const values = await ui.formDialog({
+    title: '기기 간 동기화 설정',
+    message: 'GitHub 비공개 저장소를 통해 아이패드와 아이폰이 같은 내용을 봅니다.',
+    fields: [
+      {
+        key: 'repo', label: '데이터 저장소', value: cur.repo,
+        placeholder: '아이디/examtree-data',
+        hint: '데이터만 담는 별도의 Private 저장소입니다. 앱 저장소와 다릅니다.',
+      },
+      {
+        key: 'token', label: '액세스 토큰', type: 'password', value: cur.token,
+        placeholder: 'github_pat_...',
+        hint: 'Fine-grained token · 그 저장소의 Contents 를 Read and write 로.',
+      },
+      {
+        key: 'role', label: '이 기기의 역할', type: 'select', value: cur.role,
+        options: [
+          { value: 'main', label: '주 기기 — 입력·수정하고 올린다 (아이패드)' },
+          { value: 'viewer', label: '보기 전용 — 자동으로 내려받아 복습만 (아이폰)' },
+        ],
+        hint: '보기 전용에서는 편집이 잠깁니다. 내려받기가 덮어쓰기 때문입니다.',
+      },
+    ],
+  });
+  if (!values) return;
+
+  sync.setConfig(values);
+  applyDeviceRole();
+
+  if (!sync.isConfigured()) {
+    ui.toast('동기화 설정을 지웠습니다.');
+    return;
+  }
+  ui.toast('연결을 확인하는 중…', { duration: 2000 });
+  try {
+    const info = await sync.test();
+    ui.toast(info.private
+      ? `연결됐습니다: ${info.full} (비공개)`
+      : `연결됐습니다: ${info.full} — 공개 저장소입니다. 비공개를 권합니다.`,
+    { duration: 6000 });
+  } catch (err) {
+    ui.toast(err.message, { duration: 8000 });
+  }
+}
+
+async function syncPush() {
+  if (!sync.isConfigured()) { syncSetupDialog(); return; }
+  if (sync.isViewer()) { ui.toast('보기 전용 기기에서는 올릴 수 없습니다.'); return; }
+  sheet.flushPendingEdit();
+
+  const ok = await ui.confirmDialog({
+    title: '이 기기 내용을 클라우드에 올릴까요?',
+    message: `폴더 ${store.folders.size}개 · 문제 ${store.questions.size}개를 올립니다.\n`
+      + '클라우드에 있던 내용은 이것으로 교체됩니다.',
+    okLabel: '올리기',
+  });
+  if (!ok) return;
+
+  ui.toast('올리는 중…', { duration: 2000 });
+  try {
+    const data = store.exportData();
+    await sync.push({ folders: data.folders, questions: data.questions, exportedAt: data.exportedAt });
+    ui.toast(`올렸습니다. 문제 ${store.questions.size}개`);
+  } catch (err) {
+    ui.toast(err.message, { duration: 8000 });
+  }
+  toolbar.refresh();
+}
+
+/** @param opts.confirm 사용자가 직접 눌렀으면 true (자동 내려받기는 조용히 진행) */
+async function syncPull({ confirm = false } = {}) {
+  if (!sync.isConfigured()) { if (confirm) syncSetupDialog(); return; }
+  sheet.flushPendingEdit();
+
+  if (confirm) {
+    const ok = await ui.confirmDialog({
+      title: '클라우드 내용을 내려받을까요?',
+      message: '이 기기의 폴더와 문제가 클라우드 내용으로 교체됩니다.\n'
+        + '화면 설정(컬럼 폭 등)은 그대로 유지됩니다.',
+      okLabel: '내려받기', danger: true,
+    });
+    if (!ok) return;
+    ui.toast('내려받는 중…', { duration: 2000 });
+  }
+
+  try {
+    const data = await sync.pull();
+    if (!data) {
+      if (confirm) ui.toast('클라우드에 아직 올라간 내용이 없습니다. 아이패드에서 먼저 올려 주세요.', { duration: 6000 });
+      return;
+    }
+    // 화면 설정은 기기마다 달라야 하므로 유지한다.
+    await store.importData(data, { replaceSettings: false });
+    undo.clear();
+    gotoDefault();
+    ui.toast(`내려받았습니다. 문제 ${store.questions.size}개`);
+  } catch (err) {
+    // 자동 내려받기 실패는 조용히 넘어간다. 기기에 있던 내용으로 계속 쓰면 된다.
+    if (confirm) ui.toast(err.message, { duration: 8000 });
+    else console.warn('[ExamTree] 자동 내려받기 실패:', err.message);
+  }
+  toolbar.refresh();
+}
 
 // ── 사이드바 ────────────────────────────────────────────────
 function isNarrow() { return window.innerWidth < NARROW; }
@@ -282,6 +401,7 @@ async function main() {
   });
 
   toolbar.init(actions);
+  applyDeviceRole();
   bindSidebarResize();
   bindViewport();
   bindKeys();
@@ -327,6 +447,10 @@ async function main() {
   if (backup.backupOverdue()) {
     setTimeout(() => ui.toast('백업한 지 오래되었습니다. ⋯ 메뉴에서 백업하세요.', { duration: 5000 }), 1500);
   }
+
+  // 보기 전용 기기(아이폰)는 열 때마다 알아서 최신 내용을 받아 온다.
+  // 오프라인이면 조용히 실패하고 기기에 있던 내용으로 정상 동작한다.
+  if (sync.isViewer() && sync.isConfigured()) syncPull();
 
   registerServiceWorker();
   document.body.classList.add('ready');

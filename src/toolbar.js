@@ -7,6 +7,7 @@ import * as review from './review.js';
 import * as rt from './richtext.js';
 import * as sheet from './sheet.js';
 import * as backup from './backup.js';
+import * as sync from './sync.js';
 
 let actions = {};
 let buttons = {};
@@ -86,7 +87,13 @@ export function refresh() {
   buttons.more.classList.toggle('badge', backup.backupOverdue());
 
   const isReviewView = sheet.getView().kind === 'review';
-  buttons.add.disabled = isReviewView;
+  const viewer = sheet.isReadOnly();
+  buttons.add.disabled = isReviewView || viewer;
+  // 보기 전용 기기에서는 데이터를 바꾸는 버튼을 잠근다.
+  // 정답 가리기·랜덤·검색은 화면 상태일 뿐이라 그대로 쓸 수 있다.
+  for (const key of ['del', 'move', 'clearWritten', 'bold', 'size', 'color']) {
+    if (buttons[key]) buttons[key].disabled = viewer;
+  }
 }
 
 function sizeMenu(anchor) {
@@ -117,12 +124,30 @@ function rowHeightMenu(anchor) {
   ]);
 }
 
+/** ⋯ 메뉴의 동기화 부분. 설정 전에는 안내만, 설정 후에는 올리기/내려받기. */
+function syncMenuItems() {
+  const items = [];
+  if (sync.isConfigured()) {
+    // 보기 전용 기기에서는 올리기를 아예 내보내지 않는다 (실수로 덮어쓰지 않도록).
+    if (!sync.isViewer()) {
+      items.push({ label: '지금 올리기 (이 기기 → 클라우드)', onClick: () => actions.syncPush() });
+    }
+    items.push({ label: '지금 내려받기 (클라우드 → 이 기기)', onClick: () => actions.syncPull() });
+    items.push({ label: '동기화 설정…', onClick: () => actions.syncSetup() });
+  } else {
+    items.push({ label: '기기 간 동기화 설정하기…', onClick: () => actions.syncSetup() });
+  }
+  items.push('-');
+  return items;
+}
+
 function moreMenu(anchor) {
   const deep = store.getSetting('folderCountMode') !== 'direct';
   ui.popupMenu(anchor, [
     // 챕터 단위 비우기는 툴바의 '작성 비우기' 버튼에 있다. 여기는 전체 범위만.
     { label: "'정답 작성하기' 전체 비우기 (모든 챕터)", danger: true, onClick: () => sheet.clearExplanations('all') },
     '-',
+    ...syncMenuItems(),
     { label: '데이터 백업 (JSON 내보내기)', onClick: () => backup.exportBackup().then(refresh) },
     { label: '백업 파일에서 복원', onClick: () => backup.pickAndImport() },
     '-',
@@ -160,10 +185,16 @@ async function resetToSeed() {
 
 function aboutDialog() {
   const last = store.getSetting('lastBackupAt');
+  const syncAt = sync.lastSyncAt();
+  const syncLine = sync.isConfigured()
+    ? `동기화: ${sync.getConfig().repo} · ${sync.isViewer() ? '보기 전용 기기' : '주 기기'}\n`
+      + `마지막 동기화: ${syncAt ? new Date(syncAt).toLocaleString('ko-KR') : '없음'}\n`
+    : '동기화: 설정되지 않음\n';
   ui.confirmDialog({
     title: `ExamTree v${actions.version ? actions.version() : '?'}`,
     message: `폴더 ${store.folders.size}개 · 문제 ${store.questions.size}개 · 복습 표시 ${store.reviewCount()}개\n`
-      + `마지막 백업: ${last ? new Date(last).toLocaleString('ko-KR') : '없음'}\n\n`
+      + `마지막 백업: ${last ? new Date(last).toLocaleString('ko-KR') : '없음'}\n`
+      + syncLine + '\n'
       + '데이터는 이 기기 안에만 저장됩니다. 정기적으로 백업하세요.',
     okLabel: '확인', cancelLabel: '닫기',
   });

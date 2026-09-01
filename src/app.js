@@ -15,7 +15,7 @@ import * as sync from './sync.js';
 const NARROW = 900; // 이 폭 미만이면 사이드바를 서랍(Drawer)으로 쓴다
 
 // 화면에 보여 줄 버전. sw.js 의 VERSION 과 항상 같이 올린다.
-export const APP_VERSION = '2.2.0';
+export const APP_VERSION = '2.3.0';
 
 // ── 화면 전환 ───────────────────────────────────────────────
 function openFolder(folderID, questionID) {
@@ -142,6 +142,40 @@ function mergeStars(remoteQuestions) {
     }
   }
   return localWon;
+}
+
+/**
+ * 앱을 열 때 별 표시만 조용히 맞춘다.
+ * 주 기기(아이패드)는 전체 내려받기를 자동으로 하지 않는다 —
+ * 아직 올리지 않은 입력이 지워질 수 있기 때문. 하지만 ★ 는 시각으로 합쳐지므로
+ * 이것만 따로 맞추면 위험 없이 아이폰에서 누른 ★ 가 저절로 들어온다.
+ */
+async function syncStarsOnStart() {
+  if (!sync.isConfigured()) return;
+  try {
+    const remote = await sync.pull();
+    if (!remote) return;
+
+    // 1) 클라우드 쪽이 더 최근이면 이 기기에 적용
+    let received = 0;
+    for (const rq of remote.questions || []) {
+      const lq = store.questions.get(rq.id);
+      if (!lq) continue;
+      if ((Number(rq.reviewChangedAt) || 0) > (Number(lq.reviewChangedAt) || 0)) {
+        store.applyReviewState(rq.id, rq);
+        received++;
+      }
+    }
+    if (received) {
+      store.notifyQuestionsChanged();
+      ui.toast(`다른 기기에서 표시한 ★ ${received}개를 받아왔습니다.`, { duration: 4000 });
+    }
+
+    // 2) 이 기기 쪽이 더 최근인 게 남아 있으면 클라우드에 올려 둔다
+    if (mergeStars(remote.questions)) await sync.push(remote);
+  } catch (err) {
+    console.warn('[ExamTree] 별 표시 맞추기 실패:', err.message);
+  }
 }
 
 /** 별 표시를 눌렀을 때 클라우드에 조용히 반영한다. 연달아 눌러도 한 번만 보낸다. */
@@ -537,7 +571,10 @@ async function main() {
 
   // 보기 전용 기기(아이폰)는 열 때마다 알아서 최신 내용을 받아 온다.
   // 오프라인이면 조용히 실패하고 기기에 있던 내용으로 정상 동작한다.
-  if (sync.isViewer() && sync.isConfigured()) syncPull();
+  if (sync.isConfigured()) {
+    if (sync.isViewer()) syncPull();       // 전체 내려받기 (★ 도 여기서 합쳐진다)
+    else syncStarsOnStart();               // 주 기기는 ★ 만 맞춘다 (안 올린 입력을 지키려고)
+  }
 
   registerServiceWorker();
   document.body.classList.add('ready');

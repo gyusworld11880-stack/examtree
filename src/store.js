@@ -515,6 +515,28 @@ export function setReview(id, on) {
   return q;
 }
 
+/**
+ * 동기화로 받은 별 표시를 그대로 적용한다.
+ * setReview 와 달리 reviewChangedAt 을 지금 시각으로 덮지 않는다 —
+ * 그러면 남의 기기에서 바꾼 시각을 잃어버려 다음 합치기에서 잘못 이긴다.
+ */
+export function applyReviewState(id, { isReview, reviewMarkedAt, reviewChangedAt }) {
+  const q = questions.get(id);
+  if (!q) return null;
+  q.isReview = !!isReview;
+  q.isReviewFlag = isReview ? 1 : 0;
+  q.reviewMarkedAt = Number(reviewMarkedAt) || 0;
+  q.reviewChangedAt = Number(reviewChangedAt) || 0;
+  q.updatedAt = now();
+  saveQuestions([q]);
+  return q;
+}
+
+/** 별 표시를 여러 건 적용한 뒤 한 번만 화면을 갱신한다. */
+export function notifyQuestionsChanged() {
+  emit({ questions: true });
+}
+
 // ── 설정 ────────────────────────────────────────────────────
 export function getSetting(key) { return settings[key]; }
 
